@@ -1,13 +1,17 @@
 import React from 'https://esm.sh/react@18';
 import { ChatStore } from '../stores/ChatStore.js';
 import { AppDispatcher } from '../dispatcher/Dispatcher.js';
-import { fetchCurrentUser, fetchChannels, fetchMessages, sendMessageApi, fetchUserProfileApi, editMessageApi, deleteMessageApi } from '../network/api.js';
+import { fetchCurrentUser, fetchChannels, fetchMessages } from '../network/api.js';
 import { connectGateway } from '../network/gateway.js';
 import LoginScreen from './LoginScreen.js';
 import Sidebar from './Sidebar.js';
 import ChatFeed from './ChatFeed.js';
 import ProfilePopout from './ProfilePopout.js';
 import ChatModals from './ChatModals.js';
+import ConnectionBanner from './ConnectionBanner.js';
+import MobileHeader from './MobileHeader.js';
+import { renderMessageContent } from './messageUtils.js';
+import { handleSendMessage, fetchUserProfile, handleDeleteMessage, handleRemoveLocalMessage } from './chatHandlers.js';
 
 const e = React.createElement;
 
@@ -153,141 +157,6 @@ export default function App() {
         setUploadProgress(null);
     };
 
-    const fetchUserProfile = async (userId, evt) => {
-        const rect = evt.currentTarget.getBoundingClientRect();
-        setPopoutCoords({
-            x: Math.min(rect.right + 10, window.innerWidth - 320),
-            y: Math.min(rect.top, window.innerHeight - 450)
-        });
-
-        try {
-            const data = await fetchUserProfileApi(state.token, userId);
-            if (data) {
-                setSelectedProfile(data);
-            }
-        } catch (err) {
-            console.error("Failed to fetch user profile:", err);
-        }
-    };
-
-    const handleSendMessage = async (evt) => {
-        evt.preventDefault();
-        if ((!text.trim() && stagedFiles.length === 0) || !state.currentChannelId) return;
-
-        const content = text;
-        const filesToSend = [...stagedFiles];
-        const replyRef = replyingTo;
-        const editId = editingMessageId;
-
-        setText('');
-        clearAttachment();
-        setReplyingTo(null);
-        setEditingMessageId(null);
-
-        const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-
-        try {
-            if (editId) {
-                const updatedMsg = await editMessageApi(state.token, state.currentChannelId, editId, content);
-                AppDispatcher.dispatch({ type: 'UPDATE_MESSAGE', message: updatedMsg });
-            } else {
-                const optimisticMsg = {
-                    id: nonce,
-                    nonce: nonce,
-                    channel_id: state.currentChannelId,
-                    content: content,
-                    author: state.user || { username: 'You', id: 'me' },
-                    timestamp: new Date().toISOString(),
-                    status: 'pending',
-                    attachments: filesToSend.map(f => ({ url: f.preview, filename: f.name, proxy_url: f.preview })),
-                    referenced_message: replyRef ? { id: replyRef.id, content: replyRef.content, author: replyRef.author } : undefined
-                };
-                AppDispatcher.dispatch({ type: 'ADD_MESSAGE', message: optimisticMsg });
-
-                let newMsg;
-                if (filesToSend.length > 0) {
-                    const formData = new FormData();
-                    const payloadObj = { content, nonce };
-                    if (replyRef) {
-                        payloadObj.message_reference = { message_id: replyRef.id };
-                    }
-                    formData.append('payload_json', JSON.stringify(payloadObj));
-
-                    filesToSend.forEach((fileObj, idx) => {
-                        formData.append(`files[${idx}]`, fileObj.file, fileObj.name);
-                    });
-
-                    newMsg = await sendMessageApi(state.token, state.currentChannelId, formData, (progressData) => {
-                        setUploadProgress(progressData);
-                    });
-                } else {
-                    const payload = { content, nonce };
-                    if (replyRef) {
-                        payload.message_reference = { message_id: replyRef.id };
-                    }
-                    newMsg = await sendMessageApi(state.token, state.currentChannelId, payload);
-                }
-
-                AppDispatcher.dispatch({ type: 'ADD_MESSAGE', message: newMsg });
-            }
-        } catch (err) {
-            console.error("Failed to send/edit message:", err);
-            AppDispatcher.dispatch({
-                type: 'UPDATE_MESSAGE',
-                message: {
-                    id: nonce,
-                    nonce: nonce,
-                    channel_id: state.currentChannelId,
-                    content: content,
-                    author: state.user || { username: 'You', id: 'me' },
-                    status: 'failed',
-                    timestamp: new Date().toISOString()
-                }
-            });
-        } finally {
-            setUploadProgress(null);
-        }
-    };
-
-    const handleDeleteMessage = async (msgId) => {
-        setActiveMenuMsgId(null);
-        try {
-            await deleteMessageApi(state.token, state.currentChannelId, msgId);
-        } catch (err) {
-            console.error("Failed to delete message:", err);
-        }
-    };
-
-    const handleRemoveLocalMessage = (msgId) => {
-        setActiveMenuMsgId(null);
-        AppDispatcher.dispatch({ type: 'DELETE_MESSAGE', messageId: msgId, channelId: state.currentChannelId });
-    };
-
-    const renderMessageContent = (content, mentions = []) => {
-        if (!content) return null;
-        const parts = content.split(/(<@!?\d+>|@\w+| <@\d+>)/g);
-        return parts.map((part, idx) => {
-            const mentionMatch = part.match(/<@!?(\d+)>/);
-            if (mentionMatch) {
-                const userId = mentionMatch[1];
-                const user = mentions.find(u => u.id === userId);
-                const displayName = user ? (user.global_name || user.username) : userId;
-                return e('span', {
-                    key: idx,
-                    onClick: (eEvt) => fetchUserProfile(userId, eEvt),
-                    className: 'bg-[#7289da]/30 text-[#7289da] font-semibold px-1 rounded cursor-pointer hover:underline inline-block'
-                }, `@${displayName}`);
-            }
-            if (part === '@here' || part === '@everyone') {
-                return e('span', { key: idx, className: 'bg-[#7289da]/30 text-[#7289da] font-semibold px-1 rounded inline-block' }, part);
-            }
-            if (part.startsWith('@')) {
-                return e('span', { key: idx, className: 'text-neutral-200 inline-block' }, part);
-            }
-            return part;
-        });
-    };
-
     if (!state.token) {
         return e(LoginScreen, { handleTokenSubmit });
     }
@@ -325,38 +194,6 @@ export default function App() {
     const activeTypingSet = state.typing[state.currentChannelId];
     const typingUsersList = activeTypingSet ? Array.from(activeTypingSet) : [];
 
-    let connectionBanner = null;
-    if (authFailed) {
-        connectionBanner = {
-            bg: 'bg-red-600/20 border-red-500/30 text-red-200 shadow-lg',
-            dot: 'bg-red-500 animate-pulse',
-            text: 'Your session has expired or your token is invalid. Please update your token.',
-            actionText: 'Update Token'
-        };
-    } else if (!isOnline) {
-        connectionBanner = {
-            bg: 'bg-red-500/10 border-red-500/20 text-red-300',
-            dot: 'bg-red-400 animate-pulse',
-            text: 'You are offline. Check your internet connection.',
-            actionText: 'Logout'
-        };
-    } else if (gatewayStatus.status === 'connecting' || gatewayStatus.status === 'disconnected' || gatewayStatus.status === 'reconnecting') {
-        const attemptText = gatewayStatus.attempt > 0 ? ` (Attempt ${gatewayStatus.attempt})` : '';
-        connectionBanner = {
-            bg: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
-            dot: 'bg-amber-400 animate-ping',
-            text: `Reconnecting to server${attemptText}...`,
-            actionText: 'Logout'
-        };
-    } else if (resumedBannerVisible) {
-        connectionBanner = {
-            bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300',
-            dot: 'bg-emerald-400',
-            text: 'Session successfully restored!',
-            actionText: null
-        };
-    }
-
     return e('div', { className: 'flex flex-col h-full w-full bg-[#000000] overflow-hidden font-sans text-neutral-100 relative' },
         e('style', null, `
             @keyframes slideUp {
@@ -368,52 +205,30 @@ export default function App() {
             }
         `),
 
-        connectionBanner && e('div', { className: `${connectionBanner.bg} border-b px-4 py-2.5 flex items-center justify-between text-xs font-light z-30 shrink-0 transition-all duration-300` },
-            e('div', { className: 'flex items-center space-x-2 truncate pr-2' },
-                e('span', { className: `w-2 h-2 rounded-full shrink-0 ${connectionBanner.dot}` }),
-                e('span', { className: 'font-medium truncate' }, connectionBanner.text)
-            ),
-            connectionBanner.actionText && e('button', {
-                onClick: () => {
-                    setAuthFailed(false);
-                    AppDispatcher.dispatch({ type: 'SET_TOKEN', token: '' });
-                },
-                className: 'bg-white/10 hover:bg-white/25 text-white border border-white/20 px-2.5 py-1 rounded-md text-xs font-medium cursor-pointer shrink-0 transition-colors duration-200'
-            }, connectionBanner.actionText)
-        ),
+        e(ConnectionBanner, {
+            authFailed,
+            setAuthFailed,
+            isOnline,
+            gatewayStatus,
+            resumedBannerVisible
+        }),
 
         e('div', { className: 'flex-1 flex overflow-hidden relative' },
             e(Sidebar, {
                 state,
                 mobileView,
                 setMobileView,
-                fetchUserProfile
+                fetchUserProfile: (userId, evt) => fetchUserProfile(state, userId, evt, setPopoutCoords, setSelectedProfile)
             }),
             e('div', { className: 'flex-1 flex flex-col overflow-hidden relative min-h-0' },
-                mobileView === 'chat' && e('div', { className: 'flex items-center px-4 h-14 bg-[#000000] border-b border-white/10 shrink-0 pt-safe' },
-                    e('button', {
-                        onClick: () => setMobileView('channels'),
-                        className: 'p-1 text-neutral-400 hover:text-white transition-colors duration-200 cursor-pointer flex items-center rounded-md hover:bg-white/5 mr-2',
-                        title: 'Back'
-                    },
-                        e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-5 h-5' },
-                            e('path', { d: 'M4 5h16' }),
-                            e('path', { d: 'M4 12h16' }),
-                            e('path', { d: 'M4 19h16' })
-                        )
-                    ),
-                    e('div', {
-                        className: 'flex flex-col flex-1 items-center justify-center truncate pr-12 cursor-pointer',
-                        onClick: (evt) => {
-                            if (activeChannel && activeChannel.recipients && activeChannel.recipients.length === 1) {
-                                fetchUserProfile(activeChannel.recipients[0].id, evt);
-                            }
-                        }
-                    },
-                        e('span', { className: 'font-normal text-sm truncate text-neutral-100 leading-tight hover:underline' }, channelDisplayName),
-                        channelSubtext && e('span', { className: 'text-[10px] text-neutral-400 font-light truncate leading-tight mt-0.5' }, channelSubtext)
-                    )
-                ),
+                e(MobileHeader, {
+                    mobileView,
+                    setMobileView,
+                    activeChannel,
+                    channelDisplayName,
+                    channelSubtext,
+                    fetchUserProfile: (userId, evt) => fetchUserProfile(state, userId, evt, setPopoutCoords, setSelectedProfile)
+                }),
                 e('div', { className: 'flex-1 flex flex-col overflow-hidden min-h-0' },
                     e(ChatFeed, {
                         state,
@@ -423,12 +238,12 @@ export default function App() {
                         typingUsersList,
                         activeMenuMsgId,
                         setActiveMenuMsgId,
-                        fetchUserProfile,
+                        fetchUserProfile: (userId, evt) => fetchUserProfile(state, userId, evt, setPopoutCoords, setSelectedProfile),
                         setReplyingTo,
                         setEditingMessageId,
-                        handleDeleteMessage,
-                        handleRemoveLocalMessage,
-                        renderMessageContent,
+                        handleDeleteMessage: (msgId) => handleDeleteMessage(state.token, state.currentChannelId, msgId, setActiveMenuMsgId),
+                        handleRemoveLocalMessage: (msgId) => handleRemoveLocalMessage(state.currentChannelId, msgId, setActiveMenuMsgId),
+                        renderMessageContent: (content, mentions) => renderMessageContent(content, mentions, (userId, evt) => fetchUserProfile(state, userId, evt, setPopoutCoords, setSelectedProfile)),
                         messagesEndRef,
                         replyingTo,
                         editingMessageId,
@@ -438,7 +253,19 @@ export default function App() {
                         stagedFiles,
                         setStagedFiles,
                         clearAttachment,
-                        handleSendMessage,
+                        handleSendMessage: (evt) => handleSendMessage({
+                            evt,
+                            text,
+                            stagedFiles,
+                            replyingTo,
+                            editingMessageId,
+                            state,
+                            setText,
+                            clearAttachment,
+                            setReplyingTo,
+                            setEditingMessageId,
+                            setUploadProgress
+                        }),
                         handleFileSelect,
                         text,
                         setText,
