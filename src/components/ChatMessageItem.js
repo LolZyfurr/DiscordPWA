@@ -39,6 +39,19 @@ export default function ChatMessageItem({
     const isFailed = m.status === 'failed';
     const isSelected = selectedMsgIds.has(m.id);
 
+    // Check if we should hide message content when it's just a matching gifv embed link
+    const hasGifvEmbed = m.embeds && m.embeds.some(emb => emb.type === 'gifv' && emb.url);
+    const trimmedContent = (m.content || '').trim();
+    const isSingleGifvLink = hasGifvEmbed && m.embeds.length === 1 && m.embeds.some(emb => emb.url === trimmedContent);
+    const displayContent = isSingleGifvLink ? '' : m.content;
+
+    // Collect all viewable media for fullscreen viewing (images + gifv videos/thumbnails)
+    const gifvEmbeds = (m.embeds || []).filter(emb => emb.type === 'gifv' && (emb.video?.url || emb.thumbnail?.url));
+    const allFullscreenItems = [
+        ...imageAttachments.map(att => ({ type: 'image', url: att.url })),
+        ...gifvEmbeds.map(emb => ({ type: 'video', url: emb.video?.url, poster: emb.thumbnail?.url }))
+    ];
+
     return e('div', {
         key: m.id,
         id: `message-${m.id}`,
@@ -117,20 +130,41 @@ export default function ChatMessageItem({
                         e('span', {}, 'Failed to send')
                     )
                 ),
-                m.content && e('div', { className: 'text-sm font-light text-neutral-200 break-words leading-relaxed' }, renderFormattedContent(m.content, m.mentions)),
+                displayContent && e('div', { className: 'text-sm font-light text-neutral-200 break-words leading-relaxed' }, renderFormattedContent(displayContent, m.mentions)),
                 imageAttachments.length > 0 && e('div', { className: 'flex flex-wrap gap-2 mt-2' },
                     imageAttachments.map((att, attIdx) =>
                         e('img', {
                             key: att.id || attIdx,
                             src: att.url,
                             alt: 'attachment',
-                            onClick: () => setMessageFullscreen({ images: imageAttachments, index: attIdx, message: m }),
+                            onClick: () => setMessageFullscreen({ images: allFullscreenItems, index: attIdx, message: m }),
                             className: 'max-w-[220px] max-h-[220px] rounded-lg border border-white/10 object-cover shadow-sm cursor-pointer hover:opacity-90 transition-opacity duration-200'
                         })
                     )
                 ),
                 audioAttachments.map((att, attIdx) => {
                     return e(AudioPlayerEmbed, { key: att.id || attIdx, att });
+                }),
+                m.embeds && m.embeds.map((emb, embIdx) => {
+                    if (emb.type === 'gifv' && emb.video?.url) {
+                        const globalIndex = imageAttachments.length + embIdx;
+                        return e('div', {
+                            key: embIdx,
+                            onClick: () => setMessageFullscreen({ images: allFullscreenItems, index: globalIndex, message: m }),
+                            className: 'mt-2 max-w-[280px] rounded-xl overflow-hidden border border-white/10 bg-[#050505] shadow-sm cursor-pointer hover:opacity-95 transition-opacity'
+                        },
+                            e('video', {
+                                src: emb.video.url,
+                                poster: emb.thumbnail?.url,
+                                autoPlay: true,
+                                loop: true,
+                                muted: true,
+                                playsInline: true,
+                                className: 'w-full h-auto object-cover max-h-[350px] pointer-events-none'
+                            })
+                        );
+                    }
+                    return null;
                 }),
                 isFailed && e('div', { className: 'mt-2 flex items-center space-x-2' },
                     e('button', {
@@ -178,6 +212,13 @@ export default function ChatMessageItem({
                             onClick: () => { setReplyingTo(m); setActiveMenuMsgId(null); },
                             className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
                         }, 'Reply'),
+                        m.content && e('button', {
+                            onClick: () => {
+                                navigator.clipboard.writeText(m.content);
+                                setActiveMenuMsgId(null);
+                            },
+                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                        }, 'Copy Message Content'),
                         isOwn && !isPending && !isFailed && e('button', {
                             onClick: () => { setEditingMessageId(m.id); setText(m.content); setActiveMenuMsgId(null); },
                             className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'

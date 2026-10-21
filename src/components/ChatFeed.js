@@ -108,6 +108,7 @@ export default function ChatFeed({
             handleLoadMore
         }),
         e(ChatInputBar, {
+            token: state?.token, // Pass state.token down as prop
             typingUsersList,
             replyingTo,
             setReplyingTo,
@@ -118,6 +119,7 @@ export default function ChatFeed({
             uploadProgress,
             clearAttachment,
             stagedFiles,
+            setStagedFiles,
             setEditingFileIndex,
             setTempFileName,
             removeStagedFile,

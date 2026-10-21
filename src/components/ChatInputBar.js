@@ -3,6 +3,7 @@ import React from 'https://esm.sh/react@18';
 const e = React.createElement;
 
 export default function ChatInputBar({
+    token,
     typingUsersList,
     replyingTo,
     setReplyingTo,
@@ -13,6 +14,7 @@ export default function ChatInputBar({
     uploadProgress,
     clearAttachment,
     stagedFiles,
+    setStagedFiles,
     setEditingFileIndex,
     setTempFileName,
     removeStagedFile,
@@ -25,99 +27,78 @@ export default function ChatInputBar({
     const [isPaused, setIsPaused] = React.useState(false);
     const [uploadHistory, setUploadHistory] = React.useState([]);
     const [stallTimer, setStallTimer] = React.useState(0);
+    const [showGifPicker, setShowGifPicker] = React.useState(false);
+    const [gifSearchQuery, setGifSearchQuery] = React.useState('');
+    const [gifResults, setGifResults] = React.useState([]);
+    const [isSearchingGifs, setIsSearchingGifs] = React.useState(false);
     const prevPercentRef = React.useRef(0);
     const lastUpdateTimeRef = React.useRef(Date.now());
 
     React.useEffect(() => {
-        if (!uploadProgress) {
-            setIsPaused(false);
-            setUploadHistory([]);
-            setStallTimer(0);
-            prevPercentRef.current = 0;
-            return;
-        }
-
-        const now = Date.now();
-        const currentPercent = uploadProgress.percent || 0;
-        
-        if (currentPercent !== prevPercentRef.current) {
-            const timeDiff = (now - lastUpdateTimeRef.current) / 1000;
-            const percentDiff = currentPercent - prevPercentRef.current;
-            
-            if (timeDiff > 0 && percentDiff > 0) {
-                const rate = percentDiff / timeDiff; // percent per second
-                setUploadHistory(prev => [...prev.slice(-5), { rate, time: now }]);
+        const fetchGifs = async (query) => {
+            if (!token) return;
+            setIsSearchingGifs(true);
+            try {
+                const res = await fetch(`https://discord.com/api/v9/gifs/search?q=${encodeURIComponent(query)}&media_format=webm&locale=en-US`, {
+                    "headers": {
+                        "accept": "*/*",
+                        "accept-language": "en-US",
+                        "authorization": token,
+                    },
+                    "body": null,
+                    "method": "GET",
+                    "mode": "cors",
+                    "credentials": "include"
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setGifResults(data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch GIFs:", err);
+            } finally {
+                setIsSearchingGifs(false);
             }
-            
-            prevPercentRef.current = currentPercent;
-            lastUpdateTimeRef.current = now;
-            setStallTimer(0);
-        } else {
-            if (currentPercent < 100 && !isPaused) {
-                const inactiveTime = (now - lastUpdateTimeRef.current) / 1000;
-                if (inactiveTime > 2.5) {
-                    setStallTimer(Math.floor(inactiveTime));
+        };
+
+        const timer = setTimeout(() => {
+            if (showGifPicker) {
+                fetchGifs(gifSearchQuery || 'cat');
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [gifSearchQuery, showGifPicker, token]);
+
+    const handlePaste = (evt) => {
+        const items = evt.clipboardData?.items;
+        if (!items) return;
+        const filesToAdd = [];
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                    filesToAdd.push({
+                        file,
+                        preview: URL.createObjectURL(file),
+                        name: file.name || `pasted-image-${Date.now()}.png`,
+                        size: file.size,
+                        type: file.type
+                    });
                 }
             }
         }
-    }, [uploadProgress, isPaused]);
-
-    const calculatedEta = React.useMemo(() => {
-        if (!uploadProgress) return '0s';
-        if (uploadProgress.percent >= 100) return '0s';
-        if (isPaused) return 'Paused';
-        if (stallTimer > 3) return 'Stalled (retrying...)';
-
-        const remainingPercent = 100 - (uploadProgress.percent || 0);
-        if (uploadHistory.length === 0) {
-            return uploadProgress.eta !== undefined ? `${uploadProgress.eta}s` : 'Calculating...';
-        }
-
-        const avgRate = uploadHistory.reduce((acc, h) => acc + h.rate, 0) / uploadHistory.length;
-        if (avgRate <= 0) return uploadProgress.eta !== undefined ? `${uploadProgress.eta}s` : 'Calculating...';
-
-        const seconds = Math.ceil(remainingPercent / avgRate);
-        if (seconds < 60) return `${seconds}s`;
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}m ${secs}s`;
-    }, [uploadProgress, uploadHistory, stallTimer, isPaused]);
-
-    const uploadStage = React.useMemo(() => {
-        if (!uploadProgress) return '';
-        if (isPaused) return 'Upload Paused by User';
-        if (uploadProgress.percent === 0) return 'Preparing file & generating checksums...';
-        if (stallTimer > 3) return `Connection stalled for ${stallTimer}s — check network or resume...`;
-        if (uploadProgress.percent < 25) return 'Establishing secure connection & uploading initial chunk...';
-        if (uploadProgress.percent < 85) return 'Uploading payload data chunks...';
-        if (uploadProgress.percent < 100) return 'Finalizing server processing & verification...';
-        return 'Upload complete! Processing response...';
-    }, [uploadProgress, stallTimer, isPaused]);
-
-    const formatBytes = (loaded, total) => {
-        if (loaded === undefined || total === undefined) return '';
-        const format = (bytes) => {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        };
-        return `${format(loaded)} / ${format(total)}`;
-    };
-
-    const handleTogglePause = () => {
-        if (isPaused) {
-            setIsPaused(false);
-            if (uploadProgress.resume) uploadProgress.resume();
-        } else {
-            setIsPaused(true);
-            if (uploadProgress.pause) uploadProgress.pause();
+        if (filesToAdd.length > 0) {
+            evt.preventDefault();
+            const availableSlots = 10 - (stagedFiles?.length || 0);
+            const sliceFiles = filesToAdd.slice(0, availableSlots);
+            if (sliceFiles.length > 0 && setStagedFiles) {
+                setStagedFiles(prev => [...(prev || []), ...sliceFiles].slice(0, 10));
+            }
         }
     };
 
     return e(React.Fragment, null,
-        // Typing Indicator Animation Bar
         typingUsersList.length > 0 && e('div', { className: 'px-4 py-1.5 text-xs font-light text-neutral-400 flex items-center space-x-2 bg-[#000000] border-t border-white/10' },
             e('div', { className: 'flex space-x-1 items-center' },
                 e('span', { className: 'w-1 h-1 bg-white/60 rounded-full animate-pulse [animation-delay:-0.3s]' }),
@@ -127,19 +108,52 @@ export default function ChatInputBar({
             e('span', { className: 'truncate' }, 'Someone is typing...')
         ),
 
-        // Active Reply Banner
         replyingTo && e('div', { className: 'bg-[#050505] border-t border-white/10 px-4 py-2 flex items-center justify-between text-xs font-light text-neutral-300 z-20' },
             e('span', { className: 'truncate' }, `Replying to @${replyingTo.author.username}: ${replyingTo.content}`),
             e('button', { onClick: () => setReplyingTo(null), className: 'text-neutral-400 hover:text-white font-medium ml-2 transition-colors duration-200' }, '✕')
         ),
 
-        // Active Edit Banner
         editingMessageId && e('div', { className: 'bg-[#050505] border-t border-white/10 px-4 py-2 flex items-center justify-between text-xs font-light text-white z-20' },
             e('span', { className: 'truncate' }, 'Editing message...'),
             e('button', { onClick: () => { setEditingMessageId(null); setText(''); }, className: 'text-neutral-400 hover:text-white font-medium ml-2 transition-colors duration-200' }, '✕')
         ),
 
-        // Upload Progress & ETA Indicator Drawer
+        showGifPicker && e('div', { className: 'bg-[#0a0a0a] border-t border-white/10 p-3 flex flex-col space-y-3 z-30 max-h-64 shadow-2xl' },
+            e('div', { className: 'flex items-center justify-between' },
+                e('input', {
+                    type: 'text',
+                    value: gifSearchQuery,
+                    onChange: (e) => setGifSearchQuery(e.target.value),
+                    placeholder: 'Search Discord GIFs...',
+                    className: 'flex-1 bg-neutral-900 border border-white/10 rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/30'
+                }),
+                e('button', {
+                    onClick: () => setShowGifPicker(false),
+                    className: 'ml-2 text-neutral-400 hover:text-white p-1 text-xs'
+                }, '✕')
+            ),
+            e('div', { className: 'grid grid-cols-4 gap-2 overflow-y-auto max-h-48 scrollbar-none' },
+                isSearchingGifs && gifResults.length === 0
+                    ? e('div', { className: 'col-span-4 text-center text-xs text-neutral-500 py-4' }, 'Loading GIFs...')
+                    : gifResults.map((gif, idx) => {
+                        const gifUrl = gif.url;
+                        const previewImg = gif.gif_src || gif.preview || gif.url;
+                        if (!previewImg) return null;
+                        return e('img', {
+                            key: idx,
+                            src: previewImg,
+                            alt: gif.title || 'GIF',
+                            title: gif.title,
+                            onClick: () => {
+                                setText(gifUrl);
+                                setShowGifPicker(false);
+                            },
+                            className: 'w-full h-24 object-cover rounded-md cursor-pointer hover:opacity-80 border border-white/10 transition-opacity'
+                        });
+                    })
+            )
+        ),
+
         uploadProgress && e('div', { className: 'bg-[#050505] border-t border-white/10 p-3 flex flex-col space-y-2.5 z-20 shadow-lg' },
             e('div', { className: 'flex justify-between items-center text-xs font-light text-neutral-300' },
                 e('div', { className: 'flex items-center space-x-2 truncate' },
@@ -170,7 +184,7 @@ export default function ChatInputBar({
                         onClick: handleTogglePause,
                         className: 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 px-2.5 py-1 rounded-md text-xs font-light transition-all duration-200 ease-in-out flex items-center space-x-1.5 cursor-pointer'
                     },
-                        isPaused 
+                        isPaused
                             ? e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '12', height: '12', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, e('polygon', { points: '5 3 19 12 5 21 5 3' }))
                             : e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '12', height: '12', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, e('rect', { x: '6', y: '4', width: '4', height: '16' }), e('rect', { x: '14', y: '4', width: '4', height: '16' })),
                         isPaused ? 'Resume' : 'Pause'
@@ -196,7 +210,6 @@ export default function ChatInputBar({
             )
         ),
 
-        // Staged Media Preview Drawer
         stagedFiles.length > 0 && !uploadProgress && e('div', { className: 'flex space-x-3 overflow-x-auto p-3 bg-[#000000] border-t border-white/10 shrink-0 z-25 scrollbar-none' },
             stagedFiles.map((fileObj, idx) => {
                 const isImage = fileObj.type?.startsWith('image/') || fileObj.preview?.startsWith('blob:');
@@ -250,7 +263,6 @@ export default function ChatInputBar({
             })
         ),
 
-        // Input & Action Bar
         e('form', { onSubmit: handleSendMessage, className: 'p-4 bg-[#000000] border-t border-white/10 pb-safe shrink-0 z-30' },
             e('div', { className: 'bg-[#050505] rounded-xl px-4 py-2.5 flex items-center space-x-3 border border-white/10 focus-within:border-white/30 transition-all duration-200 ease-in-out' },
                 e('label', { className: 'cursor-pointer text-neutral-400 hover:text-white transition-colors duration-200 shrink-0 flex items-center justify-center p-1 rounded-md hover:bg-white/5', title: 'Add Attachment' },
@@ -278,11 +290,17 @@ export default function ChatInputBar({
                             handleSendMessage(evt);
                         }
                     },
+                    onPaste: handlePaste,
                     placeholder: 'Message DM...',
                     className: 'flex-1 bg-transparent border-none text-neutral-100 placeholder-neutral-500 text-sm font-light focus:outline-none resize-none max-h-[120px] py-1 scrollbar-none'
                 }),
                 e('div', { className: 'flex items-center space-x-2 shrink-0 text-neutral-400' },
-                    e('button', { type: 'button', className: 'hover:text-white transition-colors duration-200 cursor-pointer flex items-center p-1 rounded-md hover:bg-white/5', title: 'GIF' },
+                    e('button', {
+                        type: 'button',
+                        onClick: () => setShowGifPicker(!showGifPicker),
+                        className: 'hover:text-white transition-colors duration-200 cursor-pointer flex items-center p-1 rounded-md hover:bg-white/5',
+                        title: 'GIF'
+                    },
                         e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-5 h-5' },
                             e('path', { d: 'M15 15.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z' }),
                             e('path', { d: 'M21 12.17V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6' }),
@@ -290,7 +308,7 @@ export default function ChatInputBar({
                             e('circle', { cx: '9', cy: '9', r: '2' })
                         )
                     ),
-                    e('button', { type: 'button', className: 'hover:text-white transition-colors duration-200 cursor-pointer flex items-center p-1 rounded-md hover:bg-white/5', title: 'Select Emoji' },
+                    e('button', { type: 'button', className: 'hover:text-white transition-colors duration-200 cursor-pointer flex items-center p-1 rounded-md hover:bg-white/5', title: 'Speed/Emoji' },
                         e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-5 h-5' },
                             e('path', { d: 'M15 10V9' }),
                             e('path', { d: 'M16.472 15a6 6 0 01-8.943 0' }),
