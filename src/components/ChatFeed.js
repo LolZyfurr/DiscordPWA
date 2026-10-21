@@ -24,6 +24,8 @@ export default function ChatFeed({
     uploadProgress,
     previewUrl,
     selectedFile,
+    stagedFiles,
+    setStagedFiles,
     clearAttachment,
     handleSendMessage,
     handleFileSelect,
@@ -31,7 +33,6 @@ export default function ChatFeed({
     setText,
     handleLoadMore
 }) {
-    const [stagedFiles, setStagedFiles] = React.useState([]);
     const [editingFileIndex, setEditingFileIndex] = React.useState(null);
     const [fullscreenFileIndex, setFullscreenFileIndex] = React.useState(null);
     const [messageFullscreen, setMessageFullscreen] = React.useState(null);
@@ -48,7 +49,7 @@ export default function ChatFeed({
         } else if (!selectedFile && !previewUrl) {
             setStagedFiles([]);
         }
-    }, [selectedFile, previewUrl]);
+    }, [selectedFile, previewUrl, setStagedFiles]);
 
     const handleMultipleFileSelect = (evt) => {
         const files = Array.from(evt.target.files || []);
