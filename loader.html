@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Loader</title>
+    <script>
+        (function () {
+            // Configuration for your GitHub project via jsDelivr
+            const GITHUB_USER = 'YOUR_GITHUB_USERNAME';
+            const GITHUB_REPO = 'YOUR_REPOSITORY_NAME';
+            const GITHUB_BRANCH = 'main'; // or 'master'
+            const CDN_BASE = `https://cdn.jsdelivr.net/gh/${GITHUB_USER}/${GITHUB_REPO}@${GITHUB_BRANCH}/`;
+
+            // Helper to clean and route asset or relative paths correctly
+            function resolveAssetUrl(val) {
+                if (!val || typeof val !== 'string') return val;
+
+                // If it's already an absolute external URL, data URL, or blob, leave it alone
+                if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:') || val.startsWith('blob:')) {
+                    return val;
+                }
+
+                // Clean up local file protocols, drive letters, leading slashes, or relative prefixes
+                let cleanPath = val
+                    .replace(/^file:\/\/.+?\//, '')
+                    .replace(/^[A-Za-z]:[\/\\]/, '')
+                    .replace(/^\/+/, '')
+                    .replace(/^[A-Za-z]:/, '')
+                    .replace(/^\.\//, '');
+
+                // If the path doesn't start with 'src/' and isn't index.html, 
+                // but matches your internal folders, prepend 'src/' based on your layout structure
+                if (!cleanPath.startsWith('src/') && (cleanPath.startsWith('components/') || cleanPath.startsWith('dispatcher/') || cleanPath.startsWith('network/') || cleanPath.startsWith('stores/'))) {
+                    cleanPath = 'src/' + cleanPath;
+                }
+
+                // Route through jsDelivr CDN for the GitHub project
+                return CDN_BASE + cleanPath;
+            }
+
+            // Intercept document.createElement to catch dynamically created scripts, links, and images
+            const originalCreateElement = document.createElement;
+            document.createElement = function (tagName, options) {
+                const element = originalCreateElement.call(document, tagName, options);
+                const tag = tagName ? tagName.toLowerCase() : '';
+
+                if (tag === 'script') {
+                    const originalSetAttribute = element.setAttribute;
+                    element.setAttribute = function (name, value) {
+                        if (name === 'src') {
+                            value = resolveAssetUrl(value);
+                        }
+                        return originalSetAttribute.call(this, name, value);
+                    };
+                    Object.defineProperty(element, 'src', {
+                        set(value) {
+                            element.setAttribute('src', value);
+                        },
+                        get() {
+                            return element.getAttribute('src');
+                        },
+                        configurable: true
+                    });
+                } else if (tag === 'link' || tag === 'img') {
+                    const attrName = tag === 'link' ? 'href' : 'src';
+                    const originalSetAttribute = element.setAttribute;
+                    element.setAttribute = function (name, value) {
+                        if (name === attrName) {
+                            value = resolveAssetUrl(value);
+                        }
+                        return originalSetAttribute.call(this, name, value);
+                    };
+                    Object.defineProperty(element, attrName, {
+                        set(value) {
+                            element.setAttribute(attrName, value);
+                        },
+                        get() {
+                            return element.getAttribute(attrName);
+                        },
+                        configurable: true
+                    });
+                }
+                return element;
+            };
+
+            // Intercept fetch to route local asset requests to CDN
+            const originalFetch = window.fetch;
+            if (originalFetch) {
+                window.fetch = function (resource, init) {
+                    let url = resource;
+                    if (typeof url === 'string') {
+                        url = resolveAssetUrl(url);
+                    } else if (url instanceof URL) {
+                        url = new URL(resolveAssetUrl(url.toString()));
+                    }
+                    return originalFetch.call(this, url, init);
+                };
+            }
+
+            // Intercept window.Worker to fix local file and cross-origin worker initializations
+            const originalWorker = window.Worker;
+            if (originalWorker) {
+                window.Worker = function (scriptURL, options) {
+                    let resolvedUrl = typeof scriptURL === 'string' ? resolveAssetUrl(scriptURL) : scriptURL;
+                    try {
+                        return new originalWorker(resolvedUrl, options);
+                    } catch (e) {
+                        const blobCode = `importScripts(${JSON.stringify(resolvedUrl)});`;
+                        const blob = new Blob([blobCode], { type: 'application/javascript' });
+                        return new originalWorker(URL.createObjectURL(blob), options);
+                    }
+                };
+            }
+
+            // Intercept dynamic element creation for src/href attributes via MutationObserver
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) {
+                            ['src', 'href'].forEach((attr) => {
+                                if (node.hasAttribute && node.hasAttribute(attr)) {
+                                    let val = node.getAttribute(attr);
+                                    let fixed = resolveAssetUrl(val);
+                                    if (fixed !== val) {
+                                        node.setAttribute(attr, fixed);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+            observer.observe(document, { childList: true, subtree: true });
+
+            window.__resolveAssetUrl = resolveAssetUrl;
+        })();
+    </script>
+    <script>
+        // Fetch the main index.html entry point from jsDelivr
+        const GITHUB_USER = 'YOUR_GITHUB_USERNAME';
+        const GITHUB_REPO = 'YOUR_REPOSITORY_NAME';
+        const GITHUB_BRANCH = 'main';
+
+        fetch(`https://cdn.jsdelivr.net/gh/${GITHUB_USER}/${GITHUB_REPO}@${GITHUB_BRANCH}/index.html`)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.text();
+            })
+            .then(html => {
+                document.open();
+                document.write(html);
+                document.close();
+            })
+            .catch(err => console.error('Failed to load application:', err));
+    </script>
+</head>
+
+<body>
+    <p>Loading application...</p>
+</body>
+
+</html>
