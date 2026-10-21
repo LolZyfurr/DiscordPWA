@@ -9,9 +9,18 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
     const [gamesMap, setGamesMap] = React.useState({});
     const [showProfileMenu, setShowProfileMenu] = React.useState(false);
 
+    const containerRef = React.useRef(null);
+    const touchStartYRef = React.useRef(null);
+    const touchStartXRef = React.useRef(null);
+    const translateYRef = React.useRef(0);
+    const [translateY, setTranslateY] = React.useState(0);
+    const [isDragging, setIsDragging] = React.useState(false);
+
     React.useEffect(() => {
         if (!selectedProfile) {
             setGamesMap({});
+            setTranslateY(0);
+            translateYRef.current = 0;
             return;
         }
 
@@ -53,6 +62,64 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
         (c.type === 1 || !c.type) && c.recipients?.some(r => r.id === selectedProfile.user.id)
     );
 
+    const handleTouchStart = (evt) => {
+        if (evt.touches.length === 0 || isDesktop) return;
+        const container = containerRef.current;
+        if (container && container.scrollTop <= 0) {
+            touchStartYRef.current = evt.touches[0].clientY;
+            touchStartXRef.current = evt.touches[0].clientX;
+        } else {
+            touchStartYRef.current = null;
+            touchStartXRef.current = null;
+            setIsDragging(false);
+        }
+    };
+
+    const handleTouchMove = (evt) => {
+        if (touchStartYRef.current === null || evt.touches.length === 0 || isDesktop) return;
+        const currentY = evt.touches[0].clientY;
+        const currentX = evt.touches[0].clientX;
+        const diffY = currentY - touchStartYRef.current;
+        const diffX = currentX - touchStartXRef.current;
+
+        if (!isDragging) {
+            // Only start dragging if vertical swipe down is dominant and exceeds a 10px threshold
+            if (diffY > 10 && Math.abs(diffY) > Math.abs(diffX)) {
+                setIsDragging(true);
+                touchStartYRef.current = currentY - diffY; // adjust starting point smoothly
+            }
+            return;
+        }
+
+        const diff = currentY - touchStartYRef.current;
+        if (diff > 0) {
+            translateYRef.current = diff;
+            setTranslateY(diff);
+            if (evt.cancelable) {
+                evt.preventDefault();
+            }
+        } else {
+            translateYRef.current = 0;
+            setTranslateY(0);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (isDesktop) return;
+        if (isDragging) {
+            if (translateYRef.current > 100) {
+                setSelectedProfile(null);
+                setShowProfileMenu(false);
+            } else {
+                translateYRef.current = 0;
+                setTranslateY(0);
+            }
+            setIsDragging(false);
+        }
+        touchStartYRef.current = null;
+        touchStartXRef.current = null;
+    };
+
     const openProfileFullscreen = (initialIndex) => {
         const images = [];
         if (bannerHash) {
@@ -66,11 +133,8 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
             images.push({ url: 'https://cdn.discordapp.com/embed/avatars/0.png', name: `${selectedProfile.user.username}-avatar` });
         }
 
-        // If clicked avatar and we have a banner, banner is index 0 and avatar is index 1.
-        // Adjust index if clicking avatar vs banner.
         let targetIndex = initialIndex;
         if (bannerHash && images.length > 1) {
-            // images[0] = banner, images[1] = avatar
             targetIndex = initialIndex;
         } else {
             targetIndex = 0;
@@ -107,12 +171,18 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
             className: 'fixed inset-0 z-50 bg-transparent'
         }),
         e('div', {
+            ref: containerRef,
             style: isDesktop && popoutCoords ? {
                 top: `${Math.min(popoutCoords.y, window.innerHeight - 450)}px`,
                 left: `${Math.min(popoutCoords.x, window.innerWidth - 340)}px`,
                 position: 'fixed',
                 maxHeight: '85vh'
-            } : { maxHeight: '85vh' },
+            } : {
+                maxHeight: '85vh',
+                transform: !isDesktop ? `translateY(${translateY}px)` : undefined,
+                transition: !isDesktop && isDragging ? 'none' : 'transform 0.2s ease-out',
+                animation: !isDesktop && (isDragging || translateY > 0) ? 'none' : undefined
+            },
             className: `
                 z-50 bg-[#000000] text-[#f5f5f7] shadow-2xl overflow-y-auto border border-white/10
                 fixed inset-x-0 bottom-0 w-full rounded-t-3xl pb-safe min-h-[80%] animate-slide-up
@@ -122,6 +192,10 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
         },
             // Banner / Header Area
             e('div', {
+                onTouchStart: handleTouchStart,
+                onTouchMove: handleTouchMove,
+                onTouchEnd: handleTouchEnd,
+                onTouchCancel: handleTouchEnd,
                 className: 'h-32 bg-[#050505] relative shrink-0 border-b border-white/10 bg-cover bg-center cursor-pointer',
                 style: bannerHash
                     ? { backgroundImage: `url(https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${bannerHash}.${bannerHash.startsWith('a_') ? 'gif' : 'png'}?size=600)` }
