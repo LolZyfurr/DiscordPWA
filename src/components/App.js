@@ -161,6 +161,14 @@ export default function App() {
             if (res.ok) {
                 const data = await res.json();
                 setSelectedProfile(data);
+            } else if (res.status === 404) {
+                const userRes = await fetch(`https://discord.com/api/v9/users/${userId}`, {
+                    headers: { 'Authorization': state.token }
+                });
+                if (userRes.ok) {
+                    const userData = await userRes.json();
+                    setSelectedProfile({ user: userData, isLimited: true });
+                }
             }
         } catch (err) {
             console.error("Failed to fetch user profile:", err);

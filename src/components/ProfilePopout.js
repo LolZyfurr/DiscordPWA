@@ -164,6 +164,9 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
             ),
             // Profile Content Body Container
             e('div', { className: 'px-4 pb-4 pt-12 relative bg-[#000000] m-3 rounded-2xl border border-white/10' },
+                selectedProfile.isLimited && e('div', { className: 'mb-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 px-3 py-2 rounded-lg text-xs font-light' },
+                    'Profile is limited (not friends or shared servers). Some data may be missing.'
+                ),
                 e('div', { className: 'absolute -top-10 left-3 p-1 bg-[#000000] rounded-full border border-white/10' },
                     e('img', {
                         src: selectedProfile.user.avatar
