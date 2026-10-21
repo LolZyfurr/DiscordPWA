@@ -402,8 +402,15 @@ export default function App() {
                             e('path', { d: 'M4 19h16' })
                         )
                     ),
-                    e('div', { className: 'flex flex-col flex-1 items-center justify-center truncate pr-12' },
-                        e('span', { className: 'font-normal text-sm truncate text-neutral-100 leading-tight' }, channelDisplayName),
+                    e('div', {
+                        className: 'flex flex-col flex-1 items-center justify-center truncate pr-12 cursor-pointer',
+                        onClick: (evt) => {
+                            if (activeChannel && activeChannel.recipients && activeChannel.recipients.length === 1) {
+                                fetchUserProfile(activeChannel.recipients[0].id, evt);
+                            }
+                        }
+                    },
+                        e('span', { className: 'font-normal text-sm truncate text-neutral-100 leading-tight hover:underline' }, channelDisplayName),
                         channelSubtext && e('span', { className: 'text-[10px] text-neutral-400 font-light truncate leading-tight mt-0.5' }, channelSubtext)
                     )
                 ),

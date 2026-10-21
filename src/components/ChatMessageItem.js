@@ -29,6 +29,39 @@ export default function ChatMessageItem({
     const isOwn = state.user && m.author.id === state.user.id;
     const showMenu = activeMenuMsgId === m.id;
 
+    // Gesture states for mobile swipe left
+    const touchStartXRef = React.useRef(null);
+    const [translateX, setTranslateX] = React.useState(0);
+
+    const handleTouchStart = (evt) => {
+        if (evt.touches.length === 0) return;
+        touchStartXRef.current = evt.touches[0].clientX;
+    };
+
+    const handleTouchMove = (evt) => {
+        if (touchStartXRef.current === null || evt.touches.length === 0) return;
+        const currentX = evt.touches[0].clientX;
+        const diff = currentX - touchStartXRef.current;
+        if (diff < 0) {
+            setTranslateX(Math.max(diff, -100));
+        } else {
+            setTranslateX(0);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (translateX < -70) {
+            if (isOwn) {
+                setEditingMessageId(m.id);
+                setText(m.content);
+            } else {
+                setReplyingTo(m);
+            }
+        }
+        touchStartXRef.current = null;
+        setTranslateX(0);
+    };
+
     // Fixed: Exclude audio attachments from image attachments
     const imageAttachments = (m.attachments || []).filter(att =>
         att.url &&
@@ -57,6 +90,14 @@ export default function ChatMessageItem({
     return e('div', {
         key: m.id,
         id: `message-${m.id}`,
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        onTouchCancel: handleTouchEnd,
+        style: {
+            transform: `translateX(${translateX}px)`,
+            transition: translateX === 0 ? 'transform 0.2s ease' : 'none'
+        },
         onClick: () => {
             if (isSelectMode && isOwn && !isPending && !isFailed) {
                 const next = new Set(selectedMsgIds);
