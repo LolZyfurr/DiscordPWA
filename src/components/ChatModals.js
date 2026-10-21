@@ -16,7 +16,62 @@ export default function ChatModals({
     tempFileName,
     saveFileName
 }) {
+    const [touchStart, setTouchStart] = React.useState(null);
+    const [touchEnd, setTouchEnd] = React.useState(null);
+    const [isTouch, setIsTouch] = React.useState(false);
+
+    React.useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+        }
+    }, []);
+
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (evt) => {
+        setTouchEnd(null);
+        setTouchStart(evt.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (evt) => {
+        setTouchEnd(evt.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe) {
+            setMessageFullscreen(prev => ({
+                ...prev,
+                index: (prev.index + 1) % prev.images.length,
+                slideDir: 'right'
+            }));
+        } else if (isRightSwipe) {
+            setMessageFullscreen(prev => ({
+                ...prev,
+                index: (prev.index - 1 + prev.images.length) % prev.images.length,
+                slideDir: 'left'
+            }));
+        }
+    };
+
     return e(React.Fragment, null,
+        e('style', null, `
+            @keyframes slideLeft {
+                from { transform: translateX(30px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideRight {
+                from { transform: translateX(-30px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            .animate-slideLeft { animation: slideLeft 0.25s ease-out forwards; }
+            .animate-slideRight { animation: slideRight 0.25s ease-out forwards; }
+        `),
+
         // Fullscreen Staged Image View Modal
         fullscreenFileIndex !== null && stagedFiles[fullscreenFileIndex] && e('div', {
             className: 'fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn'
@@ -72,7 +127,10 @@ export default function ChatModals({
 
         // Fullscreen Image Gallery Modal (handles both messages and profile banners/avatars)
         messageFullscreen !== null && messageFullscreen.images[messageFullscreen.index] && e('div', {
-            className: 'fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn'
+            className: 'fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn',
+            onTouchStart,
+            onTouchMove,
+            onTouchEnd
         },
             e('div', { className: 'absolute top-6 right-6 flex items-center space-x-2 bg-[#0a0a0a] px-3.5 py-2 rounded-lg border border-white/10 shadow-2xl text-neutral-300 z-20' },
                 messageFullscreen.message?.id ? e('button', {
@@ -116,13 +174,16 @@ export default function ChatModals({
                 )
             ),
 
-            messageFullscreen.images.length > 1 && e('div', { className: 'absolute inset-x-6 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none z-20' },
+            messageFullscreen.images.length > 1 && e('div', {
+                className: `absolute inset-x-6 top-1/2 -translate-y-1/2 justify-between pointer-events-none z-20 ${isTouch ? 'hidden' : 'flex'}`
+            },
                 e('button', {
                     onClick: (eEvt) => {
                         eEvt.stopPropagation();
                         setMessageFullscreen(prev => ({
                             ...prev,
-                            index: (prev.index - 1 + prev.images.length) % prev.images.length
+                            index: (prev.index - 1 + prev.images.length) % prev.images.length,
+                            slideDir: 'left'
                         }));
                     },
                     className: 'pointer-events-auto bg-[#0a0a0a]/80 hover:bg-[#0a0a0a] text-white p-3 rounded-full border border-white/10 shadow-xl transition-all duration-200 cursor-pointer'
@@ -136,7 +197,8 @@ export default function ChatModals({
                         eEvt.stopPropagation();
                         setMessageFullscreen(prev => ({
                             ...prev,
-                            index: (prev.index + 1) % prev.images.length
+                            index: (prev.index + 1) % prev.images.length,
+                            slideDir: 'right'
                         }));
                     },
                     className: 'pointer-events-auto bg-[#0a0a0a]/80 hover:bg-[#0a0a0a] text-white p-3 rounded-full border border-white/10 shadow-xl transition-all duration-200 cursor-pointer'
@@ -148,9 +210,12 @@ export default function ChatModals({
             ),
 
             e('img', {
+                key: messageFullscreen.index,
                 src: messageFullscreen.images[messageFullscreen.index].url,
                 alt: 'Fullscreen attachment',
-                className: 'max-w-full max-h-[80vh] object-contain rounded-lg border border-white/10 shadow-2xl'
+                className: `max-w-full max-h-[80vh] object-contain rounded-lg border border-white/10 shadow-2xl ${messageFullscreen.slideDir === 'left' ? 'animate-slideRight' :
+                        messageFullscreen.slideDir === 'right' ? 'animate-slideLeft' : 'animate-fadeIn'
+                    }`
             }),
             e('div', { className: 'flex items-center space-x-3 mt-4 text-neutral-400 text-xs font-light' },
                 messageFullscreen.images.length > 1 && e('span', {}, `${messageFullscreen.index + 1} / ${messageFullscreen.images.length}`),
