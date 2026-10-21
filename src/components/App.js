@@ -210,10 +210,10 @@ export default function App() {
 
     const handleSendMessage = async (evt) => {
         evt.preventDefault();
-        if ((!text.trim() && !selectedFile) || !state.currentChannelId) return;
+        if ((!text.trim() && stagedFiles.length === 0) || !state.currentChannelId) return;
 
         const content = text;
-        const fileToSend = selectedFile;
+        const filesToSend = [...stagedFiles];
         const replyRef = replyingTo;
         const editId = editingMessageId;
 
@@ -246,20 +246,27 @@ export default function App() {
                     author: state.user || { username: 'You', id: 'me' },
                     timestamp: new Date().toISOString(),
                     status: 'pending',
-                    attachments: fileToSend ? [{ url: previewUrl, filename: fileToSend.name, proxy_url: previewUrl }] : [],
+                    attachments: filesToSend.map(f => ({ url: f.preview, filename: f.name, proxy_url: f.preview })),
                     referenced_message: replyRef ? { id: replyRef.id, content: replyRef.content, author: replyRef.author } : undefined
                 };
                 AppDispatcher.dispatch({ type: 'ADD_MESSAGE', message: optimisticMsg });
 
                 let newMsg;
-                if (fileToSend) {
+                if (filesToSend.length > 0) {
                     const formData = new FormData();
-                    if (content) formData.append('content', content);
-                    formData.append('file', fileToSend);
-                    formData.append('nonce', nonce);
+
+                    // Discord expects non-file parameters inside payload_json when sending multiple files via multipart/form-data
+                    const payloadObj = { content, nonce };
                     if (replyRef) {
-                        formData.append('message_reference', JSON.stringify({ message_id: replyRef.id }));
+                        payloadObj.message_reference = { message_id: replyRef.id };
                     }
+                    formData.append('payload_json', JSON.stringify(payloadObj));
+
+                    // Append each file with files[0], files[1], etc.
+                    filesToSend.forEach((fileObj, idx) => {
+                        formData.append(`files[${idx}]`, fileObj.file, fileObj.name);
+                    });
+
                     newMsg = await uploadWithProgress(`https://discord.com/api/v9/channels/${state.currentChannelId}/messages`, state.token, formData);
                 } else {
                     const payload = { content, nonce };
@@ -276,12 +283,10 @@ export default function App() {
                 }
 
                 // Dispatch ADD_MESSAGE with the confirmed server message.
-                // The ChatStore automatically replaces the pending message by matching the nonce.
                 AppDispatcher.dispatch({ type: 'ADD_MESSAGE', message: newMsg });
             }
         } catch (err) {
             console.error("Failed to send/edit message:", err);
-            // Mark pending message as failed with its nonce ID so user can retry
             AppDispatcher.dispatch({
                 type: 'UPDATE_MESSAGE',
                 message: {
