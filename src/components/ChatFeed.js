@@ -63,7 +63,7 @@ export default function ChatFeed({
         }));
         setStagedFiles(prev => [...prev, ...filesToAdd].slice(0, 10));
         if (filesToAdd.length > 0 && handleFileSelect) {
-            const syntheticEvent = { target: { files: [filesToAdd[0].file] } };
+            const syntheticEvent = { target: { files: filesToAdd.map(f => f.file) } };
             handleFileSelect(syntheticEvent);
         }
     };
