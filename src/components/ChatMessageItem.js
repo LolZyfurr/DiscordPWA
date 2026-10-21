@@ -212,6 +212,7 @@ export default function ChatMessageItem({
 
 function AudioPlayerEmbed({ att }) {
     const audioRef = React.useRef(null);
+    const containerRef = React.useRef(null);
     const [isPlaying, setIsPlaying] = React.useState(false);
     const [currentTime, setCurrentTime] = React.useState(0);
     const [duration, setDuration] = React.useState(0);
@@ -239,6 +240,23 @@ function AudioPlayerEmbed({ att }) {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
         };
     }, [att.url]);
+
+    // Attach a non-passive wheel event listener to avoid passive event listener warnings when preventing default
+    React.useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const handleWheelEvent = (evt) => {
+            evt.preventDefault();
+            const delta = evt.deltaY || evt.deltaX;
+            handleSeek(currentTimeRef.current + (delta > 0 ? 0.8 : -0.8));
+        };
+
+        container.addEventListener('wheel', handleWheelEvent, { passive: false });
+        return () => {
+            container.removeEventListener('wheel', handleWheelEvent);
+        };
+    }, [duration]);
 
     const updatePlayhead = () => {
         if (audioRef.current) {
@@ -284,12 +302,6 @@ function AudioPlayerEmbed({ att }) {
     const dur = duration || 1;
     // Scale total width relative to duration so that 10% corresponds to 1 second per 10 seconds of audio (or scale factor based on 10% view window)
     const windowSize = dur * 0.20;
-
-    const handleWheel = (evt) => {
-        evt.preventDefault();
-        const delta = evt.deltaY || evt.deltaX;
-        handleSeek(currentTimeRef.current + (delta > 0 ? 0.8 : -0.8));
-    };
 
     const isDragging = React.useRef(false);
     const startX = React.useRef(0);
@@ -374,7 +386,7 @@ function AudioPlayerEmbed({ att }) {
         ),
         e('div', { className: 'flex flex-col flex-1 overflow-hidden' },
             e('div', {
-                onWheel: handleWheel,
+                ref: containerRef,
                 onMouseDown: handleMouseDown,
                 onMouseMove: handleMouseMove,
                 onMouseUp: handleMouseUp,
