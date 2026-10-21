@@ -12,10 +12,7 @@ const e = React.createElement;
 
 async function initNetworking(token) {
     try {
-        // 1. Establish the WebSocket gateway connection first so ensureConnected() passes
         connectGateway(token);
-
-        // 2. Give a brief moment or wait for the socket connection, then fetch data
         const userData = await fetchCurrentUser(token);
         AppDispatcher.dispatch({ type: 'SET_USER', user: userData });
 
@@ -65,7 +62,6 @@ export default function App() {
         };
         ChatStore.addListener(handleStoreChange);
 
-        // Register action dispatcher listener for gateway/network status events
         const dispatcherToken = AppDispatcher.register((action) => {
             if (action.type === 'GATEWAY_STATUS') {
                 setGatewayStatus({ status: action.status, attempt: action.attempt || 0 });
@@ -91,7 +87,6 @@ export default function App() {
         };
     }, []);
 
-    // Load initial 20 message history when channel changes
     React.useEffect(() => {
         if (!state.currentChannelId || !state.token) return;
         fetchMessages(state.token, state.currentChannelId, 20)
@@ -107,7 +102,6 @@ export default function App() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [state.messages, state.currentChannelId]);
 
-    // Handle upward pagination (fetching older messages)
     const handleLoadMore = async () => {
         const currentMsgs = state.messages[state.currentChannelId] || [];
         if (currentMsgs.length === 0) return;
@@ -171,43 +165,6 @@ export default function App() {
         }
     };
 
-    const uploadWithProgress = (url, token, formData) => {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            let startTime = Date.now();
-
-            xhr.upload.addEventListener('progress', (event) => {
-                if (event.lengthComputable) {
-                    const loaded = event.loaded;
-                    const total = event.total;
-                    const percent = Math.round((loaded / total) * 100);
-
-                    const elapsedTime = (Date.now() - startTime) / 1000;
-                    const speed = loaded / elapsedTime;
-                    const remainingBytes = total - loaded;
-                    const eta = speed > 0 ? Math.round(remainingBytes / speed) : 0;
-
-                    setUploadProgress({ percent, speed: (speed / 1024).toFixed(1), eta, xhr });
-                }
-            });
-
-            xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve(JSON.parse(xhr.responseText));
-                } else {
-                    reject(new Error(`Upload failed with status ${xhr.status}`));
-                }
-            });
-
-            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-            xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
-
-            xhr.open('POST', url);
-            xhr.setRequestHeader('Authorization', token);
-            xhr.send(formData);
-        });
-    };
-
     const handleSendMessage = async (evt) => {
         evt.preventDefault();
         if ((!text.trim() && stagedFiles.length === 0) || !state.currentChannelId) return;
@@ -222,7 +179,6 @@ export default function App() {
         setReplyingTo(null);
         setEditingMessageId(null);
 
-        // Discord nonces must be 25 or fewer characters long
         const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
         try {
@@ -237,7 +193,6 @@ export default function App() {
                     AppDispatcher.dispatch({ type: 'UPDATE_MESSAGE', message: updatedMsg });
                 }
             } else {
-                // Optimistic pending message UI injection using nonce as temporary ID
                 const optimisticMsg = {
                     id: nonce,
                     nonce: nonce,
@@ -254,35 +209,27 @@ export default function App() {
                 let newMsg;
                 if (filesToSend.length > 0) {
                     const formData = new FormData();
-
-                    // Discord expects non-file parameters inside payload_json when sending multiple files via multipart/form-data
                     const payloadObj = { content, nonce };
                     if (replyRef) {
                         payloadObj.message_reference = { message_id: replyRef.id };
                     }
                     formData.append('payload_json', JSON.stringify(payloadObj));
 
-                    // Append each file with files[0], files[1], etc.
                     filesToSend.forEach((fileObj, idx) => {
                         formData.append(`files[${idx}]`, fileObj.file, fileObj.name);
                     });
 
-                    newMsg = await uploadWithProgress(`https://discord.com/api/v9/channels/${state.currentChannelId}/messages`, state.token, formData);
+                    newMsg = await sendMessageApi(state.token, state.currentChannelId, formData, (progressData) => {
+                        setUploadProgress(progressData);
+                    });
                 } else {
                     const payload = { content, nonce };
                     if (replyRef) {
                         payload.message_reference = { message_id: replyRef.id };
                     }
-                    const res = await fetch(`https://discord.com/api/v9/channels/${state.currentChannelId}/messages`, {
-                        method: 'POST',
-                        headers: { 'Authorization': state.token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!res.ok) throw new Error('Failed to send message');
-                    newMsg = await res.json();
+                    newMsg = await sendMessageApi(state.token, state.currentChannelId, payload);
                 }
 
-                // Dispatch ADD_MESSAGE with the confirmed server message.
                 AppDispatcher.dispatch({ type: 'ADD_MESSAGE', message: newMsg });
             }
         } catch (err) {
@@ -381,7 +328,6 @@ export default function App() {
     const activeTypingSet = state.typing[state.currentChannelId];
     const typingUsersList = activeTypingSet ? Array.from(activeTypingSet) : [];
 
-    // Determine gateway connection & security status banner properties
     let connectionBanner = null;
     if (authFailed) {
         connectionBanner = {
@@ -425,7 +371,6 @@ export default function App() {
             }
         `),
 
-        // Gateway Connection, Reconnection & Authentication Security Banners
         connectionBanner && e('div', { className: `${connectionBanner.bg} border-b px-4 py-2.5 flex items-center justify-between text-xs font-light z-30 shrink-0 transition-all duration-300` },
             e('div', { className: 'flex items-center space-x-2 truncate pr-2' },
                 e('span', { className: `w-2 h-2 rounded-full shrink-0 ${connectionBanner.dot}` }),
@@ -440,7 +385,6 @@ export default function App() {
             }, connectionBanner.actionText)
         ),
 
-        // Main Content Area
         e('div', { className: 'flex-1 flex overflow-hidden relative' },
             e(Sidebar, {
                 state,
@@ -449,7 +393,6 @@ export default function App() {
                 fetchUserProfile
             }),
             e('div', { className: 'flex-1 flex flex-col overflow-hidden relative min-h-0' },
-                // Mobile Header Bar inside the chat pane
                 mobileView === 'chat' && e('div', { className: 'flex items-center px-4 h-14 bg-[#000000] border-b border-white/10 shrink-0 pt-safe' },
                     e('button', {
                         onClick: () => setMobileView('channels'),

@@ -89,7 +89,6 @@ async function ensureConnected() {
     }
     if (isGatewayConnected) return;
 
-    // Hang and wait for the websocket to connect before throwing (5 second timeout)
     const startTime = Date.now();
     const timeout = 5000;
 
@@ -184,16 +183,61 @@ export async function fetchMessages(token, channelId, limit = 20, beforeId = nul
     }
 }
 
-export async function sendMessageApi(token, channelId, formData) {
+export async function sendMessageApi(token, channelId, payloadOrFormData, onProgress = null) {
     await ensureConnected();
     try {
-        const res = await fetch(`${DISCORD_API}/api/v9/channels/${channelId}/messages`, {
-            method: 'POST',
-            headers: getHeaders(token), // Note: FormData automatically handles multipart/form-data boundary headers
-            body: formData
-        });
-        if (!res.ok) throw new Error('Failed to send message');
-        const newMsg = await res.json();
+        let newMsg;
+
+        if (payloadOrFormData instanceof FormData) {
+            // Use XMLHttpRequest to support upload progress tracking for files
+            newMsg = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                let startTime = Date.now();
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable && onProgress) {
+                        const loaded = event.loaded;
+                        const total = event.total;
+                        const percent = Math.round((loaded / total) * 100);
+
+                        const elapsedTime = (Date.now() - startTime) / 1000;
+                        const speed = elapsedTime > 0 ? loaded / elapsedTime : 0;
+                        const remainingBytes = total - loaded;
+                        const eta = speed > 0 ? Math.round(remainingBytes / speed) : 0;
+
+                        onProgress({ percent, speed: (speed / 1024).toFixed(1), eta, xhr });
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch (e) {
+                            reject(new Error('Failed to parse response'));
+                        }
+                    } else {
+                        reject(new Error(`Upload failed with status ${xhr.status}`));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+                xhr.open('POST', `${DISCORD_API}/api/v9/channels/${channelId}/messages`);
+                xhr.setRequestHeader('Authorization', token);
+                xhr.send(payloadOrFormData);
+            });
+        } else {
+            // Standard JSON fetch for text-only messages
+            const res = await fetch(`${DISCORD_API}/api/v9/channels/${channelId}/messages`, {
+                method: 'POST',
+                headers: getHeaders(token, true),
+                body: JSON.stringify(payloadOrFormData)
+            });
+            if (!res.ok) throw new Error('Failed to send message');
+            newMsg = await res.json();
+        }
 
         const cached = messagesCache.get(channelId) || [];
         if (!cached.some(m => m.id === newMsg.id)) {
