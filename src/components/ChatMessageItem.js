@@ -16,10 +16,12 @@ export default function ChatMessageItem({
     setEditingMessageId,
     setText,
     handleRetryMessage,
+    handleDeleteMessage,
     setMessageFullscreen,
     scrollToMessage,
     renderFormattedContent,
-    setDeleteModal
+    setDeleteModal,
+    handleRemoveLocalMessage
 }) {
     const avatarUrl = m.author.avatar
         ? `https://cdn.discordapp.com/avatars/${m.author.id}/${m.author.avatar}.png?size=64`
@@ -168,7 +170,9 @@ export default function ChatMessageItem({
                 }),
                 isFailed && e('div', { className: 'mt-2 flex items-center space-x-2' },
                     e('button', {
-                        onClick: () => handleRetryMessage ? handleRetryMessage(m) : setText(m.content),
+                        onClick: () => {
+                            if (handleRetryMessage) handleRetryMessage(m);
+                        },
                         className: 'bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 px-2.5 py-1 rounded text-xs font-light transition-colors cursor-pointer flex items-center space-x-1.5'
                     },
                         e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '12', height: '12', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
@@ -181,7 +185,7 @@ export default function ChatMessageItem({
             ),
 
             // Context Menu
-            !isSelectMode && e('div', { className: 'absolute right-3 top-1.5 flex items-center' },
+            e('div', { className: 'absolute right-3 top-1.5 flex items-center' },
                 e('button', {
                     onClick: (eEvt) => {
                         eEvt.stopPropagation();
@@ -208,38 +212,73 @@ export default function ChatMessageItem({
                         `
                     },
                         e('div', { className: 'hidden md:block px-3 py-1.5 text-[10px] font-light uppercase tracking-wider text-neutral-500 border-b border-white/10 mb-1' }, 'Options'),
-                        e('button', {
-                            onClick: () => { setReplyingTo(m); setActiveMenuMsgId(null); },
-                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                        }, 'Reply'),
-                        m.content && e('button', {
-                            onClick: () => {
-                                navigator.clipboard.writeText(m.content);
-                                setActiveMenuMsgId(null);
-                            },
-                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                        }, 'Copy Message Content'),
-                        isOwn && !isPending && !isFailed && e('button', {
-                            onClick: () => { setEditingMessageId(m.id); setText(m.content); setActiveMenuMsgId(null); },
-                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                        }, 'Edit'),
-                        isOwn && !isPending && !isFailed && e('button', {
-                            onClick: () => {
-                                setIsSelectMode(true);
-                                setSelectedMsgIds(new Set([m.id]));
-                                setActiveMenuMsgId(null);
-                            },
-                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                        }, 'Select Messages'),
-                        isOwn && e('button', {
-                            onClick: () => {
-                                setActiveMenuMsgId(null);
-                                if (setDeleteModal) {
-                                    setDeleteModal({ type: 'single', ids: [m.id], status: 'prompt' });
-                                }
-                            },
-                            className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-md transition-all duration-200'
-                        }, 'Delete'),
+                        isPending
+                            ? e('button', {
+                                onClick: () => {
+                                    setActiveMenuMsgId(null);
+                                    if (handleRemoveLocalMessage) {
+                                        handleRemoveLocalMessage(m.id);
+                                    } else if (handleDeleteMessage) {
+                                        handleDeleteMessage(m.id);
+                                    }
+                                },
+                                className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-md transition-all duration-200'
+                            }, 'Cancel')
+                            : isFailed
+                                ? e(React.Fragment, null,
+                                    e('button', {
+                                        onClick: () => {
+                                            setActiveMenuMsgId(null);
+                                            if (handleRetryMessage) handleRetryMessage(m);
+                                        },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                                    }, 'Retry'),
+                                    e('button', {
+                                        onClick: () => {
+                                            setActiveMenuMsgId(null);
+                                            if (handleRemoveLocalMessage) {
+                                                handleRemoveLocalMessage(m.id);
+                                            } else if (handleDeleteMessage) {
+                                                handleDeleteMessage(m.id);
+                                            }
+                                        },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-md transition-all duration-200'
+                                    }, 'Remove')
+                                )
+                                : e(React.Fragment, null,
+                                    e('button', {
+                                        onClick: () => { setReplyingTo(m); setActiveMenuMsgId(null); },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                                    }, 'Reply'),
+                                    m.content && e('button', {
+                                        onClick: () => {
+                                            navigator.clipboard.writeText(m.content);
+                                            setActiveMenuMsgId(null);
+                                        },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                                    }, 'Copy Message Content'),
+                                    isOwn && e('button', {
+                                        onClick: () => { setEditingMessageId(m.id); setText(m.content); setActiveMenuMsgId(null); },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                                    }, 'Edit'),
+                                    isOwn && e('button', {
+                                        onClick: () => {
+                                            setIsSelectMode(true);
+                                            setSelectedMsgIds(new Set([m.id]));
+                                            setActiveMenuMsgId(null);
+                                        },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
+                                    }, 'Select Messages'),
+                                    isOwn && e('button', {
+                                        onClick: () => {
+                                            setActiveMenuMsgId(null);
+                                            if (setDeleteModal) {
+                                                setDeleteModal({ type: 'single', ids: [m.id], status: 'prompt' });
+                                            }
+                                        },
+                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-md transition-all duration-200'
+                                    }, 'Delete')
+                                ),
                         e('button', {
                             onClick: () => setActiveMenuMsgId(null),
                             className: 'mt-2 md:hidden px-3 py-2 text-center bg-white/10 hover:bg-white/20 text-white font-normal rounded-md transition-all duration-200'
@@ -262,7 +301,7 @@ function AudioPlayerEmbed({ att }) {
     const rafRef = React.useRef(null);
     const currentTimeRef = React.useRef(0);
 
-    const barsCount = 200; // Fixed total number of bars for every file so density remains uniform
+    const barsCount = 200;
 
     React.useEffect(() => {
         const heights = [];
@@ -282,7 +321,6 @@ function AudioPlayerEmbed({ att }) {
         };
     }, [att.url]);
 
-    // Attach a non-passive wheel event listener to avoid passive event listener warnings when preventing default
     React.useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
@@ -341,7 +379,6 @@ function AudioPlayerEmbed({ att }) {
     };
 
     const dur = duration || 1;
-    // Scale total width relative to duration so that 10% corresponds to 1 second per 10 seconds of audio (or scale factor based on 10% view window)
     const windowSize = dur * 0.20;
 
     const isDragging = React.useRef(false);
@@ -394,7 +431,6 @@ function AudioPlayerEmbed({ att }) {
         return `${mins}:${remain < 10 ? '0' : ''}${remain}`;
     };
 
-    // Calculate pagination start window and track sizing/translation
     const startWindow = Math.max(0, Math.min(currentTime - windowSize / 2, Math.max(0, dur - windowSize)));
     const trackWidthPercent = Math.max(100, (dur / windowSize) * 100);
     const translatePercent = dur > windowSize ? (startWindow / dur) * 100 : 0;
@@ -438,7 +474,6 @@ function AudioPlayerEmbed({ att }) {
                 onTouchCancel: handleTouchEnd,
                 className: 'h-10 relative flex items-center cursor-grab active:cursor-grabbing overflow-hidden px-1 bg-black/40 rounded border border-white/5'
             },
-                // Proportional track container with smooth translate
                 e('div', {
                     style: {
                         width: `${trackWidthPercent}%`,

@@ -1,4 +1,5 @@
 import React from 'https://esm.sh/react@18';
+import { fetchGifsApi } from '../network/api.js';
 
 const e = React.createElement;
 
@@ -123,25 +124,12 @@ export default function ChatInputBar({
     };
 
     React.useEffect(() => {
-        const fetchGifs = async (query) => {
+        const loadGifs = async (query) => {
             if (!token) return;
             setIsSearchingGifs(true);
             try {
-                const res = await fetch(`https://discord.com/api/v9/gifs/search?q=${encodeURIComponent(query)}&media_format=webm&locale=en-US`, {
-                    "headers": {
-                        "accept": "*/*",
-                        "accept-language": "en-US",
-                        "authorization": token,
-                    },
-                    "body": null,
-                    "method": "GET",
-                    "mode": "cors",
-                    "credentials": "include"
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setGifResults(data || []);
-                }
+                const data = await fetchGifsApi(token, query);
+                setGifResults(data || []);
             } catch (err) {
                 console.error("Failed to fetch GIFs:", err);
             } finally {
@@ -151,7 +139,7 @@ export default function ChatInputBar({
 
         const timer = setTimeout(() => {
             if (showGifPicker) {
-                fetchGifs(gifSearchQuery || 'cat');
+                loadGifs(gifSearchQuery || 'cat');
             }
         }, 300);
 

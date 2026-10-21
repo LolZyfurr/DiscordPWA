@@ -285,3 +285,91 @@ export async function fetchGames(token, gameIds) {
         throw err;
     }
 }
+
+export async function fetchUserProfileApi(token, userId) {
+    await ensureConnected();
+    try {
+        const res = await fetch(`${DISCORD_API}/api/v9/users/${userId}/profile?type=popout&with_mutual_guilds=false&with_mutual_friends=false&with_mutual_friends_count=false`, {
+            headers: getHeaders(token)
+        });
+        if (res.ok) {
+            return await res.json();
+        } else if (res.status === 404) {
+            const userRes = await fetch(`${DISCORD_API}/api/v9/users/${userId}`, {
+                headers: getHeaders(token)
+            });
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                return { user: userData, isLimited: true };
+            }
+        }
+        return null;
+    } catch (err) {
+        if (!navigator.onLine || err.message === 'Failed to fetch') {
+            AppDispatcher.dispatch({ type: 'NETWORK_OFFLINE' });
+        }
+        throw err;
+    }
+}
+
+export async function editMessageApi(token, channelId, messageId, content) {
+    await ensureConnected();
+    try {
+        const res = await fetch(`${DISCORD_API}/api/v9/channels/${channelId}/messages/${messageId}`, {
+            method: 'PATCH',
+            headers: getHeaders(token, true),
+            body: JSON.stringify({ content })
+        });
+        if (!res.ok) throw new Error('Failed to edit message');
+        const updatedMsg = await res.json();
+        const cached = messagesCache.get(channelId) || [];
+        const index = cached.findIndex(m => m.id === updatedMsg.id);
+        if (index !== -1) {
+            cached[index] = updatedMsg;
+            messagesCache.set(channelId, [...cached]);
+        }
+        return updatedMsg;
+    } catch (err) {
+        if (!navigator.onLine || err.message === 'Failed to fetch') {
+            AppDispatcher.dispatch({ type: 'NETWORK_OFFLINE' });
+        }
+        throw err;
+    }
+}
+
+export async function deleteMessageApi(token, channelId, messageId) {
+    await ensureConnected();
+    try {
+        const res = await fetch(`${DISCORD_API}/api/v9/channels/${channelId}/messages/${messageId}`, {
+            method: 'DELETE',
+            headers: getHeaders(token)
+        });
+        if (!res.ok) throw new Error('Failed to delete message');
+        AppDispatcher.dispatch({ type: 'DELETE_MESSAGE', messageId, channelId });
+        return true;
+    } catch (err) {
+        if (!navigator.onLine || err.message === 'Failed to fetch') {
+            AppDispatcher.dispatch({ type: 'NETWORK_OFFLINE' });
+        }
+        throw err;
+    }
+}
+
+export async function fetchGifsApi(token, query) {
+    await ensureConnected();
+    try {
+        const res = await fetch(`${DISCORD_API}/api/v9/gifs/search?q=${encodeURIComponent(query)}&media_format=webm&locale=en-US`, {
+            headers: getHeaders(token),
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'include'
+        });
+        if (!res.ok) throw new Error('Failed to fetch GIFs');
+        return await res.json();
+    } catch (err) {
+        if (!navigator.onLine || err.message === 'Failed to fetch') {
+            AppDispatcher.dispatch({ type: 'NETWORK_OFFLINE' });
+        }
+        throw err;
+    }
+}

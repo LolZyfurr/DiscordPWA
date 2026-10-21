@@ -1,7 +1,7 @@
 import React from 'https://esm.sh/react@18';
 import { ChatStore } from '../stores/ChatStore.js';
 import { AppDispatcher } from '../dispatcher/Dispatcher.js';
-import { fetchCurrentUser, fetchChannels, fetchMessages, sendMessageApi } from '../network/api.js';
+import { fetchCurrentUser, fetchChannels, fetchMessages, sendMessageApi, fetchUserProfileApi, editMessageApi, deleteMessageApi } from '../network/api.js';
 import { connectGateway } from '../network/gateway.js';
 import LoginScreen from './LoginScreen.js';
 import Sidebar from './Sidebar.js';
@@ -29,7 +29,7 @@ export default function App() {
 
     // Feature States
     const [text, setText] = React.useState('');
-    const [stagedFiles, setStagedFiles] = React.useState([]); // Added stagedFiles state here
+    const [stagedFiles, setStagedFiles] = React.useState([]);
     const [selectedFile, setSelectedFile] = React.useState(null);
     const [previewUrl, setPreviewUrl] = React.useState(null);
     const [replyingTo, setReplyingTo] = React.useState(null);
@@ -142,7 +142,7 @@ export default function App() {
 
     const clearAttachment = () => {
         setSelectedFile(null);
-        setStagedFiles([]); // Clear staged files as well
+        setStagedFiles([]);
         setPreviewUrl(null);
         setUploadProgress(null);
     };
@@ -155,20 +155,9 @@ export default function App() {
         });
 
         try {
-            const res = await fetch(`https://discord.com/api/v9/users/${userId}/profile?type=popout&with_mutual_guilds=false&with_mutual_friends=false&with_mutual_friends_count=false`, {
-                headers: { 'Authorization': state.token }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await fetchUserProfileApi(state.token, userId);
+            if (data) {
                 setSelectedProfile(data);
-            } else if (res.status === 404) {
-                const userRes = await fetch(`https://discord.com/api/v9/users/${userId}`, {
-                    headers: { 'Authorization': state.token }
-                });
-                if (userRes.ok) {
-                    const userData = await userRes.json();
-                    setSelectedProfile({ user: userData, isLimited: true });
-                }
             }
         } catch (err) {
             console.error("Failed to fetch user profile:", err);
@@ -193,15 +182,8 @@ export default function App() {
 
         try {
             if (editId) {
-                const res = await fetch(`https://discord.com/api/v9/channels/${state.currentChannelId}/messages/${editId}`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': state.token, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
-                });
-                if (res.ok) {
-                    const updatedMsg = await res.json();
-                    AppDispatcher.dispatch({ type: 'UPDATE_MESSAGE', message: updatedMsg });
-                }
+                const updatedMsg = await editMessageApi(state.token, state.currentChannelId, editId, content);
+                AppDispatcher.dispatch({ type: 'UPDATE_MESSAGE', message: updatedMsg });
             } else {
                 const optimisticMsg = {
                     id: nonce,
@@ -264,16 +246,15 @@ export default function App() {
     const handleDeleteMessage = async (msgId) => {
         setActiveMenuMsgId(null);
         try {
-            const res = await fetch(`https://discord.com/api/v9/channels/${state.currentChannelId}/messages/${msgId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': state.token }
-            });
-            if (res.ok) {
-                AppDispatcher.dispatch({ type: 'DELETE_MESSAGE', messageId: msgId, channelId: state.currentChannelId });
-            }
+            await deleteMessageApi(state.token, state.currentChannelId, msgId);
         } catch (err) {
             console.error("Failed to delete message:", err);
         }
+    };
+
+    const handleRemoveLocalMessage = (msgId) => {
+        setActiveMenuMsgId(null);
+        AppDispatcher.dispatch({ type: 'DELETE_MESSAGE', messageId: msgId, channelId: state.currentChannelId });
     };
 
     const renderMessageContent = (content, mentions = []) => {
@@ -433,6 +414,7 @@ export default function App() {
                         setReplyingTo,
                         setEditingMessageId,
                         handleDeleteMessage,
+                        handleRemoveLocalMessage,
                         renderMessageContent,
                         messagesEndRef,
                         replyingTo,
@@ -440,8 +422,8 @@ export default function App() {
                         uploadProgress,
                         previewUrl,
                         selectedFile,
-                        stagedFiles, // Pass stagedFiles down
-                        setStagedFiles, // Pass setStagedFiles down
+                        stagedFiles,
+                        setStagedFiles,
                         clearAttachment,
                         handleSendMessage,
                         handleFileSelect,

@@ -17,6 +17,7 @@ export default function ChatFeed({
     setReplyingTo,
     setEditingMessageId,
     handleDeleteMessage,
+    handleRemoveLocalMessage,
     renderMessageContent,
     messagesEndRef,
     replyingTo,
@@ -31,7 +32,8 @@ export default function ChatFeed({
     handleFileSelect,
     text,
     setText,
-    handleLoadMore
+    handleLoadMore,
+    handleRetryMessage
 }) {
     const [editingFileIndex, setEditingFileIndex] = React.useState(null);
     const [fullscreenFileIndex, setFullscreenFileIndex] = React.useState(null);
@@ -101,14 +103,16 @@ export default function ChatFeed({
             setReplyingTo,
             setEditingMessageId,
             handleDeleteMessage,
+            handleRemoveLocalMessage,
             renderMessageContent,
             messagesEndRef,
             setMessageFullscreen,
             setText,
-            handleLoadMore
+            handleLoadMore,
+            handleRetryMessage
         }),
         e(ChatInputBar, {
-            token: state?.token, // Pass state.token down as prop
+            token: state?.token,
             typingUsersList,
             replyingTo,
             setReplyingTo,

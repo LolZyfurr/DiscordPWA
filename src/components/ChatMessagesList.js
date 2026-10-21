@@ -14,6 +14,7 @@ export default function ChatMessagesList({
     setReplyingTo,
     setEditingMessageId,
     handleDeleteMessage,
+    handleRemoveLocalMessage,
     messagesEndRef,
     setMessageFullscreen,
     setText,
@@ -186,14 +187,16 @@ export default function ChatMessagesList({
                 activeMenuMsgId,
                 setActiveMenuMsgId,
                 fetchUserProfile,
-                setReplyingTo,
-                setEditingMessageId,
+                setReplyingTo: m.status === 'pending' || m.status === 'failed' ? null : setReplyingTo,
+                setEditingMessageId: m.status === 'pending' || m.status === 'failed' ? null : setEditingMessageId,
                 setText,
                 handleRetryMessage,
+                handleDeleteMessage,
+                handleRemoveLocalMessage,
                 setMessageFullscreen,
                 scrollToMessage,
                 renderFormattedContent,
-                setDeleteModal
+                setDeleteModal: m.status === 'pending' || m.status === 'failed' ? null : setDeleteModal
             })),
             showScrollButton && e('button', {
                 onClick: scrollToBottom,
