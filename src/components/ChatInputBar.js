@@ -35,6 +35,94 @@ export default function ChatInputBar({
     const lastUpdateTimeRef = React.useRef(Date.now());
 
     React.useEffect(() => {
+        if (!uploadProgress) {
+            setIsPaused(false);
+            setUploadHistory([]);
+            setStallTimer(0);
+            prevPercentRef.current = 0;
+            return;
+        }
+
+        const now = Date.now();
+        const currentPercent = uploadProgress.percent || 0;
+
+        if (currentPercent !== prevPercentRef.current) {
+            const timeDiff = (now - lastUpdateTimeRef.current) / 1000;
+            const percentDiff = currentPercent - prevPercentRef.current;
+
+            if (timeDiff > 0 && percentDiff > 0) {
+                const rate = percentDiff / timeDiff;
+                setUploadHistory(prev => [...prev.slice(-5), { rate, time: now }]);
+            }
+
+            prevPercentRef.current = currentPercent;
+            lastUpdateTimeRef.current = now;
+            setStallTimer(0);
+        } else {
+            if (currentPercent < 100 && !isPaused) {
+                const inactiveTime = (now - lastUpdateTimeRef.current) / 1000;
+                if (inactiveTime > 2.5) {
+                    setStallTimer(Math.floor(inactiveTime));
+                }
+            }
+        }
+    }, [uploadProgress, isPaused]);
+
+    const calculatedEta = React.useMemo(() => {
+        if (!uploadProgress) return '0s';
+        if (uploadProgress.percent >= 100) return '0s';
+        if (isPaused) return 'Paused';
+        if (stallTimer > 3) return 'Stalled (retrying...)';
+
+        const remainingPercent = 100 - (uploadProgress.percent || 0);
+        if (uploadHistory.length === 0) {
+            return uploadProgress.eta !== undefined ? `${uploadProgress.eta}s` : 'Calculating...';
+        }
+
+        const avgRate = uploadHistory.reduce((acc, h) => acc + h.rate, 0) / uploadHistory.length;
+        if (avgRate <= 0) return uploadProgress.eta !== undefined ? `${uploadProgress.eta}s` : 'Calculating...';
+
+        const seconds = Math.ceil(remainingPercent / avgRate);
+        if (seconds < 60) return `${seconds}s`;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}m ${secs}s`;
+    }, [uploadProgress, uploadHistory, stallTimer, isPaused]);
+
+    const uploadStage = React.useMemo(() => {
+        if (!uploadProgress) return '';
+        if (isPaused) return 'Upload Paused by User';
+        if (uploadProgress.percent === 0) return 'Preparing file & generating checksums...';
+        if (stallTimer > 3) return `Connection stalled for ${stallTimer}s — check network or resume...`;
+        if (uploadProgress.percent < 25) return 'Establishing secure connection & uploading initial chunk...';
+        if (uploadProgress.percent < 85) return 'Uploading payload data chunks...';
+        if (uploadProgress.percent < 100) return 'Finalizing server processing & verification...';
+        return 'Upload complete! Processing response...';
+    }, [uploadProgress, stallTimer, isPaused]);
+
+    const formatBytes = (loaded, total) => {
+        if (loaded === undefined || total === undefined) return '';
+        const format = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        };
+        return `${format(loaded)} / ${format(total)}`;
+    };
+
+    const handleTogglePause = () => {
+        if (isPaused) {
+            setIsPaused(false);
+            if (uploadProgress.resume) uploadProgress.resume();
+        } else {
+            setIsPaused(true);
+            if (uploadProgress.pause) uploadProgress.pause();
+        }
+    };
+
+    React.useEffect(() => {
         const fetchGifs = async (query) => {
             if (!token) return;
             setIsSearchingGifs(true);
@@ -75,17 +163,16 @@ export default function ChatInputBar({
         if (!items) return;
         const filesToAdd = [];
         for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const file = items[i].getAsFile();
-                if (file) {
-                    filesToAdd.push({
-                        file,
-                        preview: URL.createObjectURL(file),
-                        name: file.name || `pasted-image-${Date.now()}.png`,
-                        size: file.size,
-                        type: file.type
-                    });
-                }
+            const item = items[i];
+            const file = item.getAsFile();
+            if (file) {
+                filesToAdd.push({
+                    file,
+                    preview: item.type.indexOf('image') !== -1 ? URL.createObjectURL(file) : null,
+                    name: file.name || `pasted-file-${Date.now()}`,
+                    size: file.size,
+                    type: file.type
+                });
             }
         }
         if (filesToAdd.length > 0) {
