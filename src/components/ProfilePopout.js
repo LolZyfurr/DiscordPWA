@@ -5,7 +5,7 @@ import { AppDispatcher } from '../dispatcher/Dispatcher.js';
 
 const e = React.createElement;
 
-export default function ProfilePopout({ selectedProfile, setSelectedProfile, popoutCoords }) {
+export default function ProfilePopout({ selectedProfile, setSelectedProfile, popoutCoords, setFullscreenFile }) {
     const [gamesMap, setGamesMap] = React.useState({});
     const [showProfileMenu, setShowProfileMenu] = React.useState(false);
 
@@ -53,6 +53,44 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
         (c.type === 1 || !c.type) && c.recipients?.some(r => r.id === selectedProfile.user.id)
     );
 
+    const openProfileFullscreen = (initialIndex) => {
+        const images = [];
+        if (bannerHash) {
+            const bannerUrl = `https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${bannerHash}.${bannerHash.startsWith('a_') ? 'gif' : 'png'}?size=600`;
+            images.push({ url: bannerUrl, name: `${selectedProfile.user.username}-banner` });
+        }
+        if (selectedProfile.user.avatar) {
+            const avatarUrl = `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.${selectedProfile.user.avatar.startsWith('a_') ? 'gif' : 'png'}?size=600`;
+            images.push({ url: avatarUrl, name: `${selectedProfile.user.username}-avatar` });
+        } else {
+            images.push({ url: 'https://cdn.discordapp.com/embed/avatars/0.png', name: `${selectedProfile.user.username}-avatar` });
+        }
+
+        // If clicked avatar and we have a banner, banner is index 0 and avatar is index 1.
+        // Adjust index if clicking avatar vs banner.
+        let targetIndex = initialIndex;
+        if (bannerHash && images.length > 1) {
+            // images[0] = banner, images[1] = avatar
+            targetIndex = initialIndex;
+        } else {
+            targetIndex = 0;
+        }
+
+        const payload = {
+            images,
+            index: targetIndex,
+            message: { author: selectedProfile.user }
+        };
+
+        if (typeof setFullscreenFile === 'function') {
+            setFullscreenFile(payload);
+        }
+        AppDispatcher.dispatch({
+            type: 'OPEN_FULLSCREEN',
+            file: payload
+        });
+    };
+
     return e(React.Fragment, null,
         !isDesktop && e('div', {
             onClick: () => {
@@ -84,12 +122,16 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
         },
             // Banner / Header Area
             e('div', {
-                className: 'h-32 bg-[#050505] relative shrink-0 border-b border-white/10 bg-cover bg-center',
+                className: 'h-32 bg-[#050505] relative shrink-0 border-b border-white/10 bg-cover bg-center cursor-pointer',
                 style: bannerHash
-                    ? { backgroundImage: `url(https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${bannerHash}.png?size=600)` }
+                    ? { backgroundImage: `url(https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${bannerHash}.${bannerHash.startsWith('a_') ? 'gif' : 'png'}?size=600)` }
                     : selectedProfile.user_profile?.accent_color
                         ? { backgroundColor: `#${selectedProfile.user_profile.accent_color.toString(16)}` }
-                        : {}
+                        : {},
+                onClick: bannerHash ? (eEvt) => {
+                    eEvt.stopPropagation();
+                    openProfileFullscreen(0);
+                } : undefined
             },
                 e('div', { className: 'absolute inset-0 bg-gradient-to-b from-black/20 to-black/60' }),
                 e('div', { className: 'absolute top-3 right-3 flex items-center space-x-2 z-10' },
@@ -139,7 +181,7 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                                 }, 'Copy Username'),
                                 selectedProfile.user.banner && e('button', {
                                     onClick: () => {
-                                        const bannerUrl = `https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${selectedProfile.user.banner}.png?size=600`;
+                                        const bannerUrl = `https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${selectedProfile.user.banner}.${selectedProfile.user.banner.startsWith('a_') ? 'gif' : 'png'}?size=600`;
                                         navigator.clipboard.writeText(bannerUrl);
                                         setShowProfileMenu(false);
                                     },
@@ -147,7 +189,7 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                                 }, 'Copy Banner URL'),
                                 selectedProfile.user.avatar && e('button', {
                                     onClick: () => {
-                                        const avatarUrl = `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.png?size=600`;
+                                        const avatarUrl = `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.${selectedProfile.user.avatar.startsWith('a_') ? 'gif' : 'png'}?size=600`;
                                         navigator.clipboard.writeText(avatarUrl);
                                         setShowProfileMenu(false);
                                     },
@@ -164,10 +206,16 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
             ),
             // Profile Content Body Container
             e('div', { className: 'px-4 pb-4 pt-12 relative bg-[#000000] m-3 rounded-2xl border border-white/10' },
-                e('div', { className: 'absolute -top-10 left-3 p-1 bg-[#000000] rounded-full border border-white/10' },
+                e('div', {
+                    className: 'absolute -top-10 left-3 p-1 bg-[#000000] rounded-full border border-white/10 cursor-pointer hover:opacity-90 transition-opacity',
+                    onClick: (eEvt) => {
+                        eEvt.stopPropagation();
+                        openProfileFullscreen(bannerHash ? 1 : 0);
+                    }
+                },
                     e('img', {
                         src: selectedProfile.user.avatar
-                            ? `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.png?size=128`
+                            ? `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.${selectedProfile.user.avatar.startsWith('a_') ? 'gif' : 'png'}`
                             : `https://cdn.discordapp.com/embed/avatars/0.png`,
                         alt: 'Avatar',
                         className: 'w-20 h-20 rounded-full bg-[#050505] object-cover'

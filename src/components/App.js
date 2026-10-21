@@ -7,6 +7,7 @@ import LoginScreen from './LoginScreen.js';
 import Sidebar from './Sidebar.js';
 import ChatFeed from './ChatFeed.js';
 import ProfilePopout from './ProfilePopout.js';
+import ChatModals from './ChatModals.js';
 
 const e = React.createElement;
 
@@ -39,6 +40,9 @@ export default function App() {
     // Profile Popout State
     const [selectedProfile, setSelectedProfile] = React.useState(null);
     const [popoutCoords, setPopoutCoords] = React.useState({ x: 0, y: 0 });
+
+    // Fullscreen Attachment & Profile Gallery State
+    const [messageFullscreen, setMessageFullscreen] = React.useState(null);
 
     // Upload Progress & Cancellation State
     const [uploadProgress, setUploadProgress] = React.useState(null);
@@ -73,6 +77,8 @@ export default function App() {
                 setAuthFailed(true);
             } else if (action.type === 'NETWORK_OFFLINE') {
                 setIsOnline(false);
+            } else if (action.type === 'OPEN_FULLSCREEN') {
+                setMessageFullscreen(action.file);
             }
         });
 
@@ -438,7 +444,23 @@ export default function App() {
         e(ProfilePopout, {
             selectedProfile,
             setSelectedProfile,
-            popoutCoords
+            popoutCoords,
+            setFullscreenFile: (file) => setMessageFullscreen(file)
+        }),
+
+        e(ChatModals, {
+            fullscreenFileIndex: null,
+            setFullscreenFileIndex: () => { },
+            stagedFiles: [],
+            setEditingFileIndex: () => { },
+            setTempFileName: () => { },
+            removeStagedFile: () => { },
+            messageFullscreen,
+            setMessageFullscreen,
+            setReplyingTo,
+            editingFileIndex: null,
+            tempFileName: '',
+            saveFileName: () => { }
         })
     );
 }

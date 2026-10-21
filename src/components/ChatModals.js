@@ -70,12 +70,12 @@ export default function ChatModals({
             e('span', { className: 'text-neutral-300 text-sm font-light mt-4 tracking-wide' }, stagedFiles[fullscreenFileIndex].name)
         ),
 
-        // Fullscreen Message Image Gallery Modal (with Reply button and navigation arrows)
+        // Fullscreen Image Gallery Modal (handles both messages and profile banners/avatars)
         messageFullscreen !== null && messageFullscreen.images[messageFullscreen.index] && e('div', {
             className: 'fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn'
         },
             e('div', { className: 'absolute top-6 right-6 flex items-center space-x-2 bg-[#0a0a0a] px-3.5 py-2 rounded-lg border border-white/10 shadow-2xl text-neutral-300 z-20' },
-                e('button', {
+                messageFullscreen.message?.id ? e('button', {
                     onClick: () => {
                         setReplyingTo(messageFullscreen.message);
                         setMessageFullscreen(null);
@@ -88,6 +88,21 @@ export default function ChatModals({
                         e('path', { d: 'M20 18v-2a4 4 0 0 0-4-4H4' })
                     ),
                     e('span', {}, 'Reply')
+                ) : e('button', {
+                    onClick: () => {
+                        const currentImg = messageFullscreen.images[messageFullscreen.index];
+                        if (currentImg?.url) {
+                            navigator.clipboard.writeText(currentImg.url);
+                        }
+                    },
+                    className: 'hover:text-white transition-colors duration-200 cursor-pointer p-1.5 rounded-md hover:bg-white/10 flex items-center space-x-1.5 text-xs font-light',
+                    title: 'Copy URL'
+                },
+                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4' },
+                        e('rect', { x: '9', y: '9', width: '13', height: '13', rx: '2', ry: '2' }),
+                        e('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
+                    ),
+                    e('span', {}, 'Copy URL')
                 ),
                 e('div', { className: 'w-px h-4 bg-white/10 mx-1' }),
                 e('button', {
