@@ -29,6 +29,7 @@ export default function App() {
 
     // Feature States
     const [text, setText] = React.useState('');
+    const [stagedFiles, setStagedFiles] = React.useState([]); // Added stagedFiles state here
     const [selectedFile, setSelectedFile] = React.useState(null);
     const [previewUrl, setPreviewUrl] = React.useState(null);
     const [replyingTo, setReplyingTo] = React.useState(null);
@@ -141,6 +142,7 @@ export default function App() {
 
     const clearAttachment = () => {
         setSelectedFile(null);
+        setStagedFiles([]); // Clear staged files as well
         setPreviewUrl(null);
         setUploadProgress(null);
     };
@@ -430,6 +432,8 @@ export default function App() {
                         uploadProgress,
                         previewUrl,
                         selectedFile,
+                        stagedFiles, // Pass stagedFiles down
+                        setStagedFiles, // Pass setStagedFiles down
                         clearAttachment,
                         handleSendMessage,
                         handleFileSelect,
