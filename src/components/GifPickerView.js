@@ -6,34 +6,108 @@ const e = React.createElement;
 // In-memory cache for search results to avoid redundant network hits on poor connections
 const searchCache = new Map();
 
+// Rough estimation: 200MB limit for cached search results
+const MAX_CACHE_SIZE_BYTES = 200 * 1024 * 1024;
+let currentCacheSizeBytes = 0;
+
+// In-memory thumbnail cache up to 20MB, referenced by original url (gif.url)
+const thumbnailCache = new Map();
+const MAX_THUMBNAIL_CACHE_SIZE = 20 * 1024 * 1024;
+let currentThumbnailCacheSize = 0;
+
+function enforceCacheSizeLimit() {
+    while (currentCacheSizeBytes > MAX_CACHE_SIZE_BYTES && searchCache.size > 0) {
+        // Delete the oldest entry (first inserted in Map)
+        const oldestKey = searchCache.keys().next().value;
+        const entry = searchCache.get(oldestKey);
+
+        // Estimate size reduction based on URL strings or remove a fixed weight/count approximation
+        if (entry && Array.isArray(entry)) {
+            // Roughly estimate 500KB per GIF object/asset reference
+            currentCacheSizeBytes -= entry.length * 500 * 1024;
+        } else {
+            currentCacheSizeBytes -= 1024 * 1024;
+        }
+
+        searchCache.delete(oldestKey);
+    }
+}
+
+function enforceThumbnailCacheSizeLimit() {
+    while (currentThumbnailCacheSize > MAX_THUMBNAIL_CACHE_SIZE && thumbnailCache.size > 0) {
+        const oldestKey = thumbnailCache.keys().next().value;
+        const entry = thumbnailCache.get(oldestKey);
+        if (entry) {
+            currentThumbnailCacheSize -= entry.size;
+        }
+        thumbnailCache.delete(oldestKey);
+    }
+}
+
 function GifItem({ gif, setText, setShowGifPicker }) {
-    const [isLoaded, setIsLoaded] = React.useState(false);
+    const gifUrl = gif.url;
+    const rawSrc = gif.gif_src;
+
+    const [isLoaded, setIsLoaded] = React.useState(() => thumbnailCache.has(gifUrl));
+    const [thumbnailSrc, setThumbnailSrc] = React.useState(() => {
+        if (thumbnailCache.has(gifUrl)) {
+            const entry = thumbnailCache.get(gifUrl);
+            thumbnailCache.delete(gifUrl);
+            thumbnailCache.set(gifUrl, entry);
+            return entry.dataUrl;
+        }
+        return rawSrc;
+    });
     const itemRef = React.useRef(null);
 
     React.useEffect(() => {
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    // Unpause / activate loading when visible
-                }
-            },
-            { threshold: 0.1, rootMargin: '100px' }
-        );
-
-        if (itemRef.current) {
-            observer.observe(itemRef.current);
+        if (thumbnailCache.has(gifUrl)) {
+            const entry = thumbnailCache.get(gifUrl);
+            thumbnailCache.delete(gifUrl);
+            thumbnailCache.set(gifUrl, entry);
+            setThumbnailSrc(entry.dataUrl);
+            setIsLoaded(true);
+        } else {
+            setThumbnailSrc(gif.gif_src);
+            setIsLoaded(false);
         }
+    }, [gif.gif_src, gifUrl]);
 
-        return () => {
-            if (itemRef.current) {
-                observer.unobserve(itemRef.current);
+    if (!rawSrc && !thumbnailCache.has(gifUrl)) return null;
+
+    // Capture the first frame onto a canvas and freeze the WebP animation to save bandwidth/CPU
+    const handleImageLoad = (e) => {
+        if (!isLoaded) {
+            setIsLoaded(true);
+            const img = e.target;
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width || 100;
+                canvas.height = img.naturalHeight || img.height || 100;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const staticDataUrl = canvas.toDataURL('image/webp');
+
+                const size = staticDataUrl.length * 2; // Approximate byte size
+                if (!thumbnailCache.has(gifUrl)) {
+                    thumbnailCache.set(gifUrl, { dataUrl: staticDataUrl, size });
+                    currentThumbnailCacheSize += size;
+                    enforceThumbnailCacheSizeLimit();
+                }
+
+                // Switch image source to the cached thumbnail and release the animated WebP from memory
+                setThumbnailSrc(staticDataUrl);
+            } catch (err) {
+                // Fallback gracefully if CORS/tainted canvas restriction applies
             }
-        };
-    }, []);
+        }
+    };
 
-    const gifUrl = gif.url;
-    const previewImg = gif.gif_src || gif.preview || gif.url;
-    if (!previewImg) return null;
+    const handleImageError = () => {
+        if (!isLoaded) {
+            setIsLoaded(true);
+        }
+    };
 
     return e('div', {
         ref: itemRef,
@@ -44,11 +118,12 @@ function GifItem({ gif, setText, setShowGifPicker }) {
         className: 'group relative w-full rounded-md bg-[#0a0a0a] border border-white/10 hover:border-white/30 cursor-pointer transition-all duration-200 ease-in-out hover:scale-[1.02] overflow-hidden'
     },
         e('img', {
-            src: previewImg,
+            src: thumbnailSrc,
+            crossOrigin: 'anonymous',
             alt: gif.title || 'GIF',
             title: gif.title,
-            loading: 'eager', // Eager loading initially loads the first frame and preserves progress / prevents unloading when scrolling back out of view
-            onLoad: () => setIsLoaded(true),
+            onLoad: handleImageLoad,
+            onError: handleImageError,
             className: `w-full h-auto object-contain transition-opacity duration-200 ease-in-out block ${isLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-40 animate-pulse'}`
         })
     );
@@ -99,7 +174,12 @@ export default function GifPickerView({
         try {
             const data = await fetchGifsApi(token, query, { signal: controller.signal });
             const results = data || [];
+
+            // Approximate size contribution for new results
+            currentCacheSizeBytes += results.length * 500 * 1024;
             searchCache.set(cacheKey, results);
+            enforceCacheSizeLimit();
+
             setGifResults(results);
         } catch (err) {
             if (err.name === 'AbortError') return;
@@ -199,10 +279,9 @@ export default function GifPickerView({
                         : e('div', { className: 'grid grid-cols-2 gap-2 items-start' },
                             // Column 1
                             e('div', { className: 'flex flex-col space-y-2' },
-                                gifResults.filter((_, idx) => idx % 2 === 0).map((gif, idx) => {
-                                    const realIdx = idx * 2;
+                                gifResults.filter((_, idx) => idx % 2 === 0).map((gif) => {
                                     return e(GifItem, {
-                                        key: realIdx,
+                                        key: gif.id || gif.url,
                                         gif,
                                         setText,
                                         setShowGifPicker
@@ -211,10 +290,9 @@ export default function GifPickerView({
                             ),
                             // Column 2
                             e('div', { className: 'flex flex-col space-y-2' },
-                                gifResults.filter((_, idx) => idx % 2 !== 0).map((gif, idx) => {
-                                    const realIdx = idx * 2 + 1;
+                                gifResults.filter((_, idx) => idx % 2 !== 0).map((gif) => {
                                     return e(GifItem, {
-                                        key: realIdx,
+                                        key: gif.id || gif.url,
                                         gif,
                                         setText,
                                         setShowGifPicker
