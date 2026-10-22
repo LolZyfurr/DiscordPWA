@@ -14,7 +14,12 @@ export default function StagedFilesView({
 
     return e('div', { className: 'flex space-x-3 overflow-x-auto p-3 bg-[#000000] border-t border-white/10 shrink-0 z-25 scrollbar-none' },
         stagedFiles.map((fileObj, idx) => {
-            const isImage = fileObj.type?.startsWith('image/') || fileObj.preview?.startsWith('blob:');
+            const isImage = (fileObj.type && fileObj.type.startsWith('image/')) ||
+                (fileObj.name && /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|tiff)$/i.test(fileObj.name));
+
+            const isAudio = (fileObj.type && fileObj.type.startsWith('audio/')) ||
+                (fileObj.name && /\.(mp3|wav|ogg|m4a|flac|aac|wma)$/i.test(fileObj.name));
+
             return e('div', {
                 key: idx,
                 className: 'w-36 h-48 bg-[#050505] border border-white/10 rounded-lg p-2.5 flex flex-col justify-between relative shrink-0 shadow-sm hover:border-white/30 transition-all duration-200 ease-in-out'
@@ -47,19 +52,27 @@ export default function StagedFilesView({
                         )
                     )
                 ),
-                isImage
+                isImage && fileObj.preview
                     ? e('img', {
                         src: fileObj.preview,
                         alt: fileObj.name,
-                        onClick: () => setFullscreenFileIndex(idx),
+                        onClick: () => setFullscreenFileIndex && setFullscreenFileIndex(idx),
                         className: 'w-full h-24 object-cover rounded-md mt-6 cursor-pointer hover:opacity-90 border border-white/10 transition-opacity duration-200'
                     })
-                    : e('div', { className: 'w-full h-24 bg-neutral-900 border border-white/10 rounded-md mt-6 flex items-center justify-center text-neutral-400' },
-                        e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-8 h-8' },
-                            e('path', { d: 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z' }),
-                            e('polyline', { points: '14 2 14 8 20 8' })
+                    : isAudio
+                        ? e('div', { className: 'w-full h-24 bg-neutral-900 border border-white/10 rounded-md mt-6 flex items-center justify-center text-neutral-400' },
+                            e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-8 h-8' },
+                                e('path', { d: 'M9 18V5l12-2v13' }),
+                                e('circle', { cx: '6', cy: '18', r: '3' }),
+                                e('circle', { cx: '18', cy: '16', r: '3' })
+                            )
                         )
-                    ),
+                        : e('div', { className: 'w-full h-24 bg-neutral-900 border border-white/10 rounded-md mt-6 flex items-center justify-center text-neutral-400' },
+                            e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-8 h-8' },
+                                e('path', { d: 'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z' }),
+                                e('polyline', { points: '14 2 14 8 20 8' })
+                            )
+                        ),
                 e('span', { className: 'text-xs font-light text-neutral-300 truncate block mt-2' }, fileObj.name)
             );
         })
