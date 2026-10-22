@@ -6,6 +6,54 @@ const e = React.createElement;
 // In-memory cache for search results to avoid redundant network hits on poor connections
 const searchCache = new Map();
 
+function GifItem({ gif, setText, setShowGifPicker }) {
+    const [isLoaded, setIsLoaded] = React.useState(false);
+    const itemRef = React.useRef(null);
+
+    React.useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    // Unpause / activate loading when visible
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        if (itemRef.current) {
+            observer.observe(itemRef.current);
+        }
+
+        return () => {
+            if (itemRef.current) {
+                observer.unobserve(itemRef.current);
+            }
+        };
+    }, []);
+
+    const gifUrl = gif.url;
+    const previewImg = gif.gif_src || gif.preview || gif.url;
+    if (!previewImg) return null;
+
+    return e('div', {
+        ref: itemRef,
+        onClick: () => {
+            setText(gifUrl);
+            setShowGifPicker(false);
+        },
+        className: 'group relative w-full rounded-md bg-[#0a0a0a] border border-white/10 hover:border-white/30 cursor-pointer transition-all duration-200 ease-in-out hover:scale-[1.02] overflow-hidden'
+    },
+        e('img', {
+            src: previewImg,
+            alt: gif.title || 'GIF',
+            title: gif.title,
+            loading: 'eager', // Eager loading initially loads the first frame and preserves progress / prevents unloading when scrolling back out of view
+            onLoad: () => setIsLoaded(true),
+            className: `w-full h-auto object-contain transition-opacity duration-200 ease-in-out block ${isLoaded ? 'opacity-90 group-hover:opacity-100' : 'opacity-40 animate-pulse'}`
+        })
+    );
+}
+
 export default function GifPickerView({
     token,
     showGifPicker,
@@ -17,18 +65,8 @@ export default function GifPickerView({
     const [isSearchingGifs, setIsSearchingGifs] = React.useState(false);
     const [hasError, setHasError] = React.useState(false);
 
-    // Buffering & preloading progress state (inspired by UploadProgressView)
-    const [isBuffering, setIsBuffering] = React.useState(false);
-    const [bufferingProgress, setBufferingProgress] = React.useState({ loaded: 0, total: 0, percent: 0, speed: '0' });
-    const [isPaused, setIsPaused] = React.useState(false);
-    const [stallTimer, setStallTimer] = React.useState(0);
-    const [bufferHistory, setBufferHistory] = React.useState([]);
-
     const pickerRef = React.useRef(null);
     const abortControllerRef = React.useRef(null);
-    const preloadAbortRef = React.useRef(null);
-    const prevLoadedRef = React.useRef(0);
-    const lastUpdateTimeRef = React.useRef(Date.now());
 
     // Detect slow network / data saver
     const isLowEndNetwork = React.useMemo(() => {
@@ -57,7 +95,6 @@ export default function GifPickerView({
 
         setIsSearchingGifs(true);
         setHasError(false);
-        setIsBuffering(false);
 
         try {
             const data = await fetchGifsApi(token, query, { signal: controller.signal });
@@ -72,138 +109,6 @@ export default function GifPickerView({
             if (abortControllerRef.current === controller) {
                 setIsSearchingGifs(false);
             }
-        }
-    };
-
-    // Background preloader effect to ensure all GIFs load immediately and stay cached
-    React.useEffect(() => {
-        if (!gifResults || gifResults.length === 0 || isPaused) {
-            if (gifResults.length > 0 && !isPaused) {
-                setIsBuffering(false);
-            }
-            return;
-        }
-
-        const total = gifResults.length;
-        let loaded = 0;
-        setIsBuffering(true);
-        setStallTimer(0);
-        prevLoadedRef.current = 0;
-        lastUpdateTimeRef.current = Date.now();
-
-        const controller = new AbortController();
-        preloadAbortRef.current = controller;
-
-        const preloadAll = async () => {
-            const promises = gifResults.map((gif) => {
-                const previewImg = gif.gif_src || gif.preview || gif.url;
-                if (!previewImg) {
-                    loaded++;
-                    return Promise.resolve();
-                }
-                return new Promise((resolve) => {
-                    if (controller.signal.aborted) {
-                        resolve();
-                        return;
-                    }
-                    const img = new Image();
-                    img.src = previewImg;
-                    img.onload = () => {
-                        if (!controller.signal.aborted) {
-                            loaded++;
-                            const now = Date.now();
-                            const percent = Math.round((loaded / total) * 100);
-                            const timeDiff = (now - lastUpdateTimeRef.current) / 1000;
-                            const loadedDiff = loaded - prevLoadedRef.current;
-
-                            if (timeDiff > 0 && loadedDiff > 0) {
-                                const rate = loadedDiff / timeDiff;
-                                setBufferHistory(prev => [...prev.slice(-5), { rate, time: now }]);
-                            }
-
-                            prevLoadedRef.current = loaded;
-                            lastUpdateTimeRef.current = now;
-                            setStallTimer(0);
-                            setBufferingProgress({
-                                loaded,
-                                total,
-                                percent,
-                                speed: (loadedDiff / (timeDiff || 1)).toFixed(1),
-                            });
-                        }
-                        resolve();
-                    };
-                    img.onerror = () => {
-                        if (!controller.signal.aborted) {
-                            loaded++;
-                            const percent = Math.round((loaded / total) * 100);
-                            setBufferingProgress({ loaded, total, percent, speed: '0' });
-                        }
-                        resolve();
-                    };
-                });
-            });
-
-            await Promise.all(promises);
-            if (!controller.signal.aborted) {
-                setIsBuffering(false);
-            }
-        };
-
-        preloadAll();
-
-        return () => {
-            controller.abort();
-        };
-    }, [gifResults, isPaused]);
-
-    // Stall timer check
-    React.useEffect(() => {
-        if (!isBuffering || isPaused) return;
-
-        const interval = setInterval(() => {
-            const now = Date.now();
-            const inactiveTime = (now - lastUpdateTimeRef.current) / 1000;
-            if (inactiveTime > 2.5 && bufferingProgress.loaded < bufferingProgress.total) {
-                setStallTimer(Math.floor(inactiveTime));
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [isBuffering, isPaused, bufferingProgress]);
-
-    const calculatedEta = React.useMemo(() => {
-        if (!isBuffering || bufferingProgress.loaded >= bufferingProgress.total) return '0s';
-        if (isPaused) return 'Paused';
-        if (stallTimer > 3) return 'Stalled (retrying...)';
-
-        const remainingItems = bufferingProgress.total - bufferingProgress.loaded;
-        if (bufferHistory.length === 0) return 'Calculating...';
-
-        const avgRate = bufferHistory.reduce((acc, h) => acc + h.rate, 0) / bufferHistory.length;
-        if (avgRate <= 0) return 'Calculating...';
-
-        const seconds = Math.ceil(remainingItems / avgRate);
-        if (seconds < 60) return `${seconds}s`;
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}m ${secs}s`;
-    }, [isBuffering, bufferingProgress, bufferHistory, stallTimer, isPaused]);
-
-    const bufferStage = React.useMemo(() => {
-        if (!isBuffering) return 'All GIFs loaded & cached in memory';
-        if (isPaused) return 'Buffering paused by user';
-        if (stallTimer > 3) return `Connection stalled for ${stallTimer}s — check network or resume...`;
-        if (bufferingProgress.percent < 50) return 'Preloading GIF previews into memory...';
-        return 'Finalizing buffer & optimizing scroll cache...';
-    }, [isBuffering, stallTimer, isPaused, bufferingProgress]);
-
-    const handleTogglePause = () => {
-        if (isPaused) {
-            setIsPaused(false);
-            lastUpdateTimeRef.current = Date.now();
-        } else {
-            setIsPaused(true);
         }
     };
 
@@ -273,48 +178,6 @@ export default function GifPickerView({
             )
         ),
 
-        // Download / Buffering Progress Bar (Inspired by UploadProgressView)
-        (isBuffering || (gifResults.length > 0 && bufferingProgress.loaded < bufferingProgress.total)) && e('div', { className: 'bg-[#050505] border border-white/10 p-2 rounded-md flex flex-col space-y-1.5 shadow-inner' },
-            e('div', { className: 'flex justify-between items-center text-[11px] font-light text-neutral-300' },
-                e('div', { className: 'flex items-center space-x-1.5 truncate' },
-                    e('span', { className: 'w-2 h-2 rounded-full ' + (isPaused ? 'bg-amber-400 animate-pulse' : stallTimer > 3 ? 'bg-red-400 animate-ping' : 'bg-white animate-pulse') }),
-                    e('span', { className: 'font-normal truncate' }, `Buffering GIFs (${bufferingProgress.loaded}/${bufferingProgress.total})`, ` (${bufferingProgress.percent}%)`)
-                ),
-                e('div', { className: 'flex items-center space-x-1.5 text-neutral-400 font-light shrink-0 text-[10px]' },
-                    e('span', { className: 'text-neutral-300 font-normal' }, `${bufferingProgress.speed} items/s`),
-                    e('span', { className: 'text-neutral-600' }, '•'),
-                    e('span', { className: 'text-neutral-400' }, `ETA: ${calculatedEta}`)
-                )
-            ),
-            e('div', { className: 'text-[10px] text-neutral-400 font-light italic flex items-center justify-between' },
-                e('span', { className: 'truncate' }, bufferStage),
-                stallTimer > 3 && e('span', { className: 'text-amber-400 not-italic font-normal text-[9px] bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20' }, 'Stalled')
-            ),
-            e('div', { className: 'w-full bg-neutral-900 border border-white/10 h-1.5 rounded-full overflow-hidden flex' },
-                e('div', {
-                    className: `h-full transition-all duration-300 ease-out ${isPaused ? 'bg-amber-400/80' : stallTimer > 3 ? 'bg-amber-500 animate-pulse' : 'bg-white'}`,
-                    style: { width: `${bufferingProgress.percent}%` }
-                })
-            ),
-            e('div', { className: 'flex justify-between items-center pt-1' },
-                e('div', { className: 'flex items-center space-x-1.5' },
-                    e('button', {
-                        onClick: handleTogglePause,
-                        className: 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 px-2 py-0.5 rounded text-[10px] font-light transition-all flex items-center space-x-1 cursor-pointer'
-                    }, isPaused ? 'Resume Buffering' : 'Pause Buffering'),
-                    stallTimer > 3 && e('button', {
-                        onClick: () => {
-                            setStallTimer(0);
-                            lastUpdateTimeRef.current = Date.now();
-                            setGifResults([...gifResults]); // Trigger re-preload
-                        },
-                        className: 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] cursor-pointer'
-                    }, 'Retry')
-                ),
-                e('span', { className: 'text-[10px] text-neutral-500' }, isBuffering ? 'Pre-caching for smooth scroll' : 'Ready')
-            )
-        ),
-
         // Results scroll container with explicit two-column layout
         e('div', { className: 'overflow-y-auto max-h-[360px] pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent' },
             isSearchingGifs && gifResults.length === 0
@@ -338,52 +201,24 @@ export default function GifPickerView({
                             e('div', { className: 'flex flex-col space-y-2' },
                                 gifResults.filter((_, idx) => idx % 2 === 0).map((gif, idx) => {
                                     const realIdx = idx * 2;
-                                    const gifUrl = gif.url;
-                                    const previewImg = gif.gif_src || gif.preview || gif.url;
-                                    if (!previewImg) return null;
-
-                                    return e('div', {
+                                    return e(GifItem, {
                                         key: realIdx,
-                                        onClick: () => {
-                                            setText(gifUrl);
-                                            setShowGifPicker(false);
-                                        },
-                                        className: 'group relative w-full rounded-md bg-[#0a0a0a] border border-white/10 hover:border-white/30 cursor-pointer transition-all duration-200 ease-in-out hover:scale-[1.02] overflow-hidden'
-                                    },
-                                        e('img', {
-                                            src: previewImg,
-                                            alt: gif.title || 'GIF',
-                                            title: gif.title,
-                                            loading: 'eager', // Eager loading prevents unloading on scroll back up
-                                            className: 'w-full h-auto object-contain opacity-90 group-hover:opacity-100 transition-opacity duration-200 ease-in-out block'
-                                        })
-                                    );
+                                        gif,
+                                        setText,
+                                        setShowGifPicker
+                                    });
                                 })
                             ),
                             // Column 2
                             e('div', { className: 'flex flex-col space-y-2' },
                                 gifResults.filter((_, idx) => idx % 2 !== 0).map((gif, idx) => {
                                     const realIdx = idx * 2 + 1;
-                                    const gifUrl = gif.url;
-                                    const previewImg = gif.gif_src || gif.preview || gif.url;
-                                    if (!previewImg) return null;
-
-                                    return e('div', {
+                                    return e(GifItem, {
                                         key: realIdx,
-                                        onClick: () => {
-                                            setText(gifUrl);
-                                            setShowGifPicker(false);
-                                        },
-                                        className: 'group relative w-full rounded-md bg-[#0a0a0a] border border-white/10 hover:border-white/30 cursor-pointer transition-all duration-200 ease-in-out hover:scale-[1.02] overflow-hidden'
-                                    },
-                                        e('img', {
-                                            src: previewImg,
-                                            alt: gif.title || 'GIF',
-                                            title: gif.title,
-                                            loading: 'eager', // Eager loading prevents unloading on scroll back up
-                                            className: 'w-full h-auto object-contain opacity-90 group-hover:opacity-100 transition-opacity duration-200 ease-in-out block'
-                                        })
-                                    );
+                                        gif,
+                                        setText,
+                                        setShowGifPicker
+                                    });
                                 })
                             )
                         )
