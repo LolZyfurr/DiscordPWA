@@ -1,5 +1,6 @@
 import { AppDispatcher } from '../dispatcher/Dispatcher.js';
 import { decodeUserSettingsProto } from './decoder.js';
+import { initIdleManager } from './idleManager.js';
 
 let globalSendPayload = null;
 
@@ -26,6 +27,7 @@ export function connectGateway(token) {
     let reconnectAttempts = 0;
     let clientLaunchId = crypto.randomUUID();
     let initialUserSettings = null;
+    let idleManagerInitialized = false;
 
     function sendPayload(data) {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -95,9 +97,6 @@ export function connectGateway(token) {
                     });
                 }, d.heartbeat_interval);
 
-                initializationTimestamp = Date.now();
-                clientHeartbeatSessionId = crypto.randomUUID();
-
                 if (sessionId) {
                     sendPayload({
                         op: 6,
@@ -157,14 +156,11 @@ export function connectGateway(token) {
             if (t === 'READY') {
                 sessionId = d.session_id;
                 resumeGatewayUrl = d.resume_gateway_url;
-                clientHeartbeatSessionId = sessionId;
 
-                // Decode user_settings_proto synchronously and store the result
                 if (d?.user_settings_proto) {
                     const protoStr = d.user_settings_proto.proto || d.user_settings_proto;
                     const decodedSettings = decodeUserSettingsProto(protoStr);
                     if (decodedSettings) {
-                        console.log("Decoded userSettingsProto:", decodedSettings);
                         initialUserSettings = decodedSettings;
                     }
                 }
@@ -196,6 +192,12 @@ export function connectGateway(token) {
                     }
                 });
 
+                // Initialize the idle and AFK manager once connected
+                if (!idleManagerInitialized) {
+                    initIdleManager(sendPayload, () => initialUserSettings);
+                    idleManagerInitialized = true;
+                }
+
                 AppDispatcher.dispatch({ type: 'READY', data: d });
             }
 
@@ -221,6 +223,31 @@ export function connectGateway(token) {
 
             if (t === 'PRESENCE_UPDATE') {
                 AppDispatcher.dispatch({ type: 'PRESENCE_UPDATE', presence: d });
+            }
+
+            // Additional Dispatcher Events Added Below
+            if (t === 'GUILD_CREATE') {
+                AppDispatcher.dispatch({ type: 'GUILD_CREATE', guild: d });
+            }
+
+            if (t === 'GUILD_DELETE') {
+                AppDispatcher.dispatch({ type: 'GUILD_DELETE', guild: d });
+            }
+
+            if (t === 'VOICE_STATE_UPDATE') {
+                AppDispatcher.dispatch({ type: 'VOICE_STATE_UPDATE', voiceState: d });
+            }
+
+            if (t === 'MESSAGE_REACTION_ADD') {
+                AppDispatcher.dispatch({ type: 'MESSAGE_REACTION_ADD', reaction: d });
+            }
+
+            if (t === 'MESSAGE_REACTION_REMOVE') {
+                AppDispatcher.dispatch({ type: 'MESSAGE_REACTION_REMOVE', reaction: d });
+            }
+
+            if (t === 'USER_UPDATE') {
+                AppDispatcher.dispatch({ type: 'USER_UPDATE', user: d });
             }
         };
 
