@@ -8,6 +8,10 @@ const thumbnailCache = new Map();
 const MAX_THUMBNAIL_CACHE_SIZE = 20 * 1024 * 1024;
 let currentThumbnailCacheSize = 0;
 
+// In-memory search results cache to eliminate redundant network overhead for present/past queries
+const searchCache = new Map();
+const MAX_SEARCH_CACHE_SIZE = 40;
+
 function enforceThumbnailCacheSizeLimit() {
     while (currentThumbnailCacheSize > MAX_THUMBNAIL_CACHE_SIZE && thumbnailCache.size > 0) {
         const oldestKey = thumbnailCache.keys().next().value;
@@ -16,6 +20,13 @@ function enforceThumbnailCacheSizeLimit() {
             currentThumbnailCacheSize -= entry.size;
         }
         thumbnailCache.delete(oldestKey);
+    }
+}
+
+function enforceSearchCacheLimit() {
+    if (searchCache.size > MAX_SEARCH_CACHE_SIZE) {
+        const oldestKey = searchCache.keys().next().value;
+        searchCache.delete(oldestKey);
     }
 }
 
@@ -338,11 +349,30 @@ export default function GifPickerView({
     const isLowEndNetwork = React.useMemo(() => {
         const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
         if (!conn) return false;
-        return conn.saveData || conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g';
+        return conn.saveData ||
+            conn.effectiveType === 'slow-2g' ||
+            conn.effectiveType === '2g' ||
+            conn.effectiveType === '3g' ||
+            (conn.effectiveType === '4g' && conn.downlink && conn.downlink < 1.5);
     }, []);
 
     const loadGifs = async (query) => {
-        if (!token || selectedGif) return; // Pause background fetches if modal preview is open
+        const trimmedQuery = (query || 'cat').trim();
+        if (!token || selectedGif || !showGifPicker) return;
+
+        // Serve instantly from cache if this search query was previously fetched
+        if (searchCache.has(trimmedQuery)) {
+            setGifResults(searchCache.get(trimmedQuery));
+            setIsSearchingGifs(false);
+            setHasError(false);
+            return;
+        }
+
+        // On slow 3G/4G connections, prevent automatic default loading if query is empty
+        if (isLowEndNetwork && !gifSearchQuery.trim() && trimmedQuery === 'cat') {
+            setIsSearchingGifs(false);
+            return;
+        }
 
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -354,8 +384,11 @@ export default function GifPickerView({
         setHasError(false);
 
         try {
-            const data = await fetchGifsApi(token, query, { signal: controller.signal });
-            setGifResults(data || []);
+            const data = await fetchGifsApi(token, trimmedQuery, { signal: controller.signal });
+            const results = data || [];
+            searchCache.set(trimmedQuery, results);
+            enforceSearchCacheLimit();
+            setGifResults(results);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Failed to fetch GIFs:", err);
@@ -367,15 +400,27 @@ export default function GifPickerView({
         }
     };
 
-    // Pause search debounce timers when modal is open
+    // Optimized search and debounce effect with zero background overhead when picker is closed or on slow networks
     React.useEffect(() => {
-        if (selectedGif) return;
-
-        const debounceTime = isLowEndNetwork ? 500 : 300;
-        const timer = setTimeout(() => {
-            if (showGifPicker) {
-                loadGifs(gifSearchQuery || 'cat');
+        if (!showGifPicker || selectedGif || !token) {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
             }
+            return;
+        }
+
+        const trimmedQuery = gifSearchQuery.trim();
+
+        // On slow 3G/4G connections without an active query, avoid background loading/fetching entirely
+        if (isLowEndNetwork && !trimmedQuery) {
+            setGifResults([]);
+            setIsSearchingGifs(false);
+            return;
+        }
+
+        const debounceTime = isLowEndNetwork ? 600 : 300;
+        const timer = setTimeout(() => {
+            loadGifs(trimmedQuery || 'cat');
         }, debounceTime);
 
         return () => clearTimeout(timer);
