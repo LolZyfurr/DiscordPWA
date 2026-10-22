@@ -24,11 +24,7 @@ export function connectGateway(token) {
     let heartbeatInterval = null;
     let reconnecttimer = null;
     let reconnectAttempts = 0;
-    let initializationTimestamp = Date.now();
-    let clientHeartbeatSessionId = crypto.randomUUID();
     let clientLaunchId = crypto.randomUUID();
-    let lastAllSession = null;
-    let receivedFirstSessionReplace = false;
     let initialUserSettings = null;
 
     function sendPayload(data) {
@@ -177,8 +173,6 @@ export function connectGateway(token) {
                     initialUserSettings = d.user_settings;
                 }
 
-
-                // Extract status and custom status matching exact structure from Discord
                 const statusVal = initialUserSettings?.status?.status?.value || initialUserSettings?.status || "online";
                 const activitiesArr = [];
                 const customStatusText = initialUserSettings?.status?.custom_status?.text;
