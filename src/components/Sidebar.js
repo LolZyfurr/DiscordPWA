@@ -4,7 +4,13 @@ import { AppDispatcher } from '../dispatcher/Dispatcher.js';
 const e = React.createElement;
 
 export default function Sidebar({ state, mobileView, setMobileView, fetchUserProfile }) {
-    const dmChannels = state.channels.filter(c => c.type === 1 || c.type === 3 || c.recipients);
+    const dmChannels = state.channels
+        .filter(c => c.type === 1 || c.type === 3 || c.recipients)
+        .sort((a, b) => {
+            const idA = a.last_message_id ? BigInt(a.last_message_id) : 0n;
+            const idB = b.last_message_id ? BigInt(b.last_message_id) : 0n;
+            return idB > idA ? 1 : idB < idA ? -1 : 0;
+        });
 
     return e('div', {
         className: `absolute inset-0 bg-[#000000] flex flex-col transition-all duration-300 ease-in-out z-10 ${mobileView === 'chat' ? '-translate-x-full md:translate-x-0' : 'translate-x-0'} md:relative md:w-64 md:translate-x-0 md:border-r md:border-white/10`
@@ -48,17 +54,16 @@ export default function Sidebar({ state, mobileView, setMobileView, fetchUserPro
                         setMobileView('chat');
                     },
                     className: `group px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-all duration-200 ease-in-out flex items-center space-x-3 border ${isActive
-                            ? 'bg-white/[0.06] border-white/20 text-white font-normal shadow-sm'
-                            : 'bg-transparent border-transparent text-neutral-400 hover:bg-white/[0.03] hover:border-white/10 hover:text-neutral-200'
+                        ? 'bg-white/[0.06] border-white/20 text-white font-normal shadow-sm'
+                        : 'bg-transparent border-transparent text-neutral-400 hover:bg-white/[0.03] hover:border-white/10 hover:text-neutral-200'
                         }`
                 },
-                    e('div', { className: 'relative shrink-0' },
+                    e('div', { className: 'shrink-0' },
                         e('img', {
                             src: avatarUrl,
                             alt: 'DM Avatar',
                             className: 'w-7 h-7 rounded-full bg-neutral-900 object-cover ring-1 ring-white/10 group-hover:ring-white/30 transition-all duration-200'
-                        }),
-                        e('span', { className: 'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-white ring-2 ring-black' })
+                        })
                     ),
                     e('span', { className: 'truncate text-xs tracking-wide font-light' }, dmName)
                 );
