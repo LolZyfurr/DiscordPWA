@@ -1,4 +1,20 @@
 import { AppDispatcher } from '../dispatcher/Dispatcher.js';
+import { decodeUserSettingsProto } from './decoder.js';
+
+let globalSendPayload = null;
+
+AppDispatcher.register((action) => {
+    if (action.type === 'CHANNEL_SELECT' || action.type === 'SELECT_CHANNEL' || action.type === 'SWITCH_CHANNEL' || action.type === 'CHANNEL_SWITCH') {
+        if (globalSendPayload) {
+            globalSendPayload({
+                op: 13,
+                d: {
+                    channel_id: action.channelId || action.channel_id || "1437302172802093096"
+                }
+            });
+        }
+    }
+});
 
 export function connectGateway(token) {
     let sessionId = null;
@@ -8,6 +24,12 @@ export function connectGateway(token) {
     let heartbeatInterval = null;
     let reconnecttimer = null;
     let reconnectAttempts = 0;
+    let initializationTimestamp = Date.now();
+    let clientHeartbeatSessionId = crypto.randomUUID();
+    let clientLaunchId = crypto.randomUUID();
+    let lastAllSession = null;
+    let receivedFirstSessionReplace = false;
+    let initialUserSettings = null;
 
     function sendPayload(data) {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -15,8 +37,9 @@ export function connectGateway(token) {
         }
     }
 
+    globalSendPayload = sendPayload;
+
     function createConnection() {
-        // Clean up any existing socket or reconnection timer to prevent multiple loops/connections
         if (ws) {
             ws.onopen = null;
             ws.onmessage = null;
@@ -56,7 +79,6 @@ export function connectGateway(token) {
             const packet = JSON.parse(event.data);
             const { op, d, t, s } = packet;
 
-            // Track sequence number required for heartbeats and resumes
             if (s !== null && s !== undefined) {
                 sequenceNum = s;
             }
@@ -64,11 +86,23 @@ export function connectGateway(token) {
             if (op === 10) {
                 if (heartbeatInterval) clearInterval(heartbeatInterval);
                 heartbeatInterval = setInterval(() => {
-                    sendPayload({ op: 1, d: sequenceNum });
+                    sendPayload({
+                        op: 40,
+                        d: {
+                            seq: sequenceNum,
+                            qos: {
+                                active: true,
+                                ver: 31,
+                                reasons: ["foregrounded"]
+                            }
+                        }
+                    });
                 }, d.heartbeat_interval);
 
+                initializationTimestamp = Date.now();
+                clientHeartbeatSessionId = crypto.randomUUID();
+
                 if (sessionId) {
-                    // Resume session (Opcode 6) - Prevents bot detection flagging from frequent fresh Identify calls
                     sendPayload({
                         op: 6,
                         d: {
@@ -78,7 +112,6 @@ export function connectGateway(token) {
                         }
                     });
                 } else {
-                    // Fresh Identify (Opcode 2)
                     sendPayload({
                         op: 2,
                         d: {
@@ -96,7 +129,7 @@ export function connectGateway(token) {
                                 os_version: "18.6",
                                 release_channel: "ptb",
                                 client_build_number: 114851,
-                                client_launch_id: crypto.randomUUID(),
+                                client_launch_id: clientLaunchId,
                                 installation_id: Math.floor(Math.random() * 1e19).toString(),
                                 is_fast_connect: false
                             },
@@ -109,13 +142,11 @@ export function connectGateway(token) {
             }
 
             if (op === 7) {
-                // Gateway requested reconnect
                 ws.close(4000, "Gateway requested reconnect");
                 return;
             }
 
             if (op === 9) {
-                // Invalid Session (d indicates whether it is resumable)
                 if (!d) {
                     sessionId = null;
                     resumeGatewayUrl = null;
@@ -128,14 +159,53 @@ export function connectGateway(token) {
             }
 
             if (t === 'READY') {
-                // Capture session tracking info from READY payload to enable session resumption
                 sessionId = d.session_id;
                 resumeGatewayUrl = d.resume_gateway_url;
+                clientHeartbeatSessionId = sessionId;
+
+                // Decode user_settings_proto synchronously and store the result
+                if (d?.user_settings_proto) {
+                    const protoStr = d.user_settings_proto.proto || d.user_settings_proto;
+                    const decodedSettings = decodeUserSettingsProto(protoStr);
+                    if (decodedSettings) {
+                        console.log("Decoded userSettingsProto:", decodedSettings);
+                        initialUserSettings = decodedSettings;
+                    }
+                }
+
+                if (d?.user_settings) {
+                    initialUserSettings = d.user_settings;
+                }
+
+
+                // Extract status and custom status matching exact structure from Discord
+                const statusVal = initialUserSettings?.status?.status?.value || initialUserSettings?.status || "online";
+                const activitiesArr = [];
+                const customStatusText = initialUserSettings?.status?.custom_status?.text;
+                if (customStatusText) {
+                    activitiesArr.push({
+                        name: 'Custom Status',
+                        type: 4,
+                        state: customStatusText,
+                        emoji: null,
+                        metadata: {}
+                    });
+                }
+
+                sendPayload({
+                    op: 3,
+                    d: {
+                        status: statusVal,
+                        since: 0,
+                        activities: activitiesArr,
+                        afk: false
+                    }
+                });
+
                 AppDispatcher.dispatch({ type: 'READY', data: d });
             }
 
             if (t === 'RESUMED') {
-                // Session successfully resumed
                 AppDispatcher.dispatch({ type: 'GATEWAY_RESUMED' });
             }
 
@@ -166,7 +236,6 @@ export function connectGateway(token) {
                 heartbeatInterval = null;
             }
 
-            // Don't reconnect if token is invalid (Auth failed code 4004)
             if (event.code === 4004) {
                 AppDispatcher.dispatch({ type: 'AUTH_FAILED' });
                 return;
