@@ -150,7 +150,7 @@ export default function AudioPlayerEmbed({ att }) {
     const totalBars = waveHeights.length || 1;
 
     return e('div', {
-        className: 'mt-2 bg-[#050505] rounded-xl p-3 border border-white/10 flex items-center space-x-3 max-w-sm select-none',
+        className: 'mt-2 bg-[#050505] rounded-xl p-3 border border-white/10 flex items-center space-x-3 max-w-sm select-none shadow-sm',
         onClick: (eEvt) => eEvt.stopPropagation()
     },
         e('audio', {
@@ -164,7 +164,7 @@ export default function AudioPlayerEmbed({ att }) {
         }),
         e('button', {
             onClick: togglePlay,
-            className: 'w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white shrink-0 transition-all cursor-pointer'
+            className: 'w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white shrink-0 transition-all duration-200 cursor-pointer'
         },
             isPlaying ? e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
                 e('rect', { x: '6', y: '4', width: '4', height: '16' }),
@@ -184,7 +184,7 @@ export default function AudioPlayerEmbed({ att }) {
                 onTouchMove: handleTouchMove,
                 onTouchEnd: handleTouchEnd,
                 onTouchCancel: handleTouchEnd,
-                className: 'h-10 relative flex items-center cursor-grab active:cursor-grabbing overflow-hidden px-1 bg-black/40 rounded border border-white/5'
+                className: 'h-10 relative flex items-center cursor-grab active:cursor-grabbing overflow-hidden px-1 bg-black/40 rounded-lg border border-white/5'
             },
                 e('div', {
                     style: {
@@ -199,9 +199,9 @@ export default function AudioPlayerEmbed({ att }) {
                         return e('div', {
                             key: idx,
                             style: { height: `${h}%` },
-                            className: `w-[2px] rounded-full shrink-0 ${isPast ? 'bg-indigo-400' : 'bg-neutral-600'}`
+                            className: `w-[2px] rounded-full shrink-0 ${isPast ? 'bg-white' : 'bg-neutral-600'}`
                         });
-                    }) : e('div', { className: 'text-[10px] text-neutral-500 w-full text-center' }, 'Loading audio waveform...')
+                    }) : e('div', { className: 'text-[10px] text-neutral-500 w-full text-center font-light' }, 'Loading audio waveform...')
                 )
             ),
             e('div', { className: 'flex justify-between items-center mt-1 text-[10px] text-neutral-400 font-light' },

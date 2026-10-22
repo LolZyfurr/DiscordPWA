@@ -22,7 +22,6 @@ export default function GifPreviewModal({ gif, onClose, onInsert }) {
     const isPausedRef = React.useRef(isPaused);
     isPausedRef.current = isPaused;
 
-    // Fetch video with streaming progress tracking
     React.useEffect(() => {
         if (!gif || !gif.preview) return;
 
@@ -73,7 +72,6 @@ export default function GifPreviewModal({ gif, onClose, onInsert }) {
                         setStallTimer(0);
                     }
 
-                    // ETA calculation
                     let etaStr = 'Calculating...';
                     if (percent >= 100) {
                         etaStr = '0s';
@@ -136,19 +134,17 @@ export default function GifPreviewModal({ gif, onClose, onInsert }) {
         return 'Preview ready!';
     }, [progressState.percent, isPaused]);
 
-    return e('div', { className: 'fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4' },
-        e('div', { className: 'bg-[#0a0a0a] border border-white/10 rounded-xl p-4 max-w-sm w-full flex flex-col space-y-4 shadow-2xl' },
-            // Header
-            e('div', { className: 'flex justify-between items-center' },
-                e('span', { className: 'text-white font-medium text-xs truncate max-w-[260px]' }, gif.title || 'GIF Preview'),
+    return e('div', { className: 'fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-slide-up' },
+        e('div', { className: 'bg-[#000000] border border-white/10 rounded-2xl p-5 max-w-sm w-full flex flex-col space-y-4 shadow-2xl' },
+            e('div', { className: 'flex justify-between items-center pb-2 border-b border-white/10' },
+                e('span', { className: 'text-white font-normal text-xs tracking-wide truncate max-w-[260px]' }, gif.title || 'GIF Preview'),
                 e('button', {
                     onClick: onClose,
-                    className: 'text-neutral-400 hover:text-white cursor-pointer p-1'
+                    className: 'text-neutral-400 hover:text-white cursor-pointer p-1 rounded transition-colors'
                 }, '✕')
             ),
 
-            // Video Preview or Loading Placeholder
-            e('div', { className: 'w-full rounded-lg overflow-hidden bg-black flex items-center justify-center min-h-[200px] max-h-[300px] relative' },
+            e('div', { className: 'w-full rounded-xl overflow-hidden bg-[#050505] border border-white/10 flex items-center justify-center min-h-[200px] max-h-[300px] relative' },
                 videoBlobUrl
                     ? e('video', {
                         src: videoBlobUrl,
@@ -159,19 +155,18 @@ export default function GifPreviewModal({ gif, onClose, onInsert }) {
                         className: 'w-full h-auto object-contain max-h-[280px]'
                     })
                     : e('div', { className: 'flex flex-col items-center justify-center p-6 text-center space-y-2' },
-                        e('div', { className: 'w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin' }),
-                        e('span', { className: 'text-neutral-400 text-xs' }, `Loading preview (${progressState.percent}%)`)
+                        e('div', { className: 'w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin' }),
+                        e('span', { className: 'text-neutral-400 text-xs font-light' }, `Loading preview (${progressState.percent}%)`)
                     )
             ),
 
-            // Progress Bar & Stats (matching UploadProgressView style)
-            progressState.percent < 100 && !hasError && e('div', { className: 'bg-[#050505] border border-white/10 p-3 flex flex-col space-y-2.5 rounded-lg shadow-inner' },
+            progressState.percent < 100 && !hasError && e('div', { className: 'bg-[#050505] border border-white/10 p-3 flex flex-col space-y-2.5 rounded-xl shadow-inner' },
                 e('div', { className: 'flex justify-between items-center text-xs font-light text-neutral-300' },
                     e('div', { className: 'flex items-center space-x-2 truncate' },
                         e('span', { className: 'w-2 h-2 rounded-full ' + (isPaused ? 'bg-amber-400 animate-pulse' : 'bg-white animate-pulse') }),
                         e('span', { className: 'font-normal truncate' }, 'Downloading Preview', ` (${progressState.percent}%)`)
                     ),
-                    e('div', { className: 'flex items-center space-x-2 text-neutral-400 font-light shrink-0' },
+                    e('div', { className: 'flex items-center space-x-2 text-neutral-400 font-light shrink-0 text-[11px]' },
                         progressState.loaded > 0 && e('span', { className: 'text-neutral-400' }, formatBytes(progressState.loaded, progressState.total)),
                         progressState.loaded > 0 && e('span', { className: 'text-neutral-600' }, '•'),
                         e('span', { className: 'text-neutral-300 font-normal' }, `${progressState.speed} KB/s`),
@@ -180,35 +175,34 @@ export default function GifPreviewModal({ gif, onClose, onInsert }) {
                     )
                 ),
                 e('div', { className: 'text-[11px] text-neutral-400 font-light italic' }, uploadStage),
-                e('div', { className: 'w-full bg-neutral-900 border border-white/10 h-2 rounded-full overflow-hidden flex' },
+                e('div', { className: 'w-full bg-neutral-900 border border-white/10 h-1.5 rounded-full overflow-hidden flex' },
                     e('div', {
                         className: `h-full transition-all duration-300 ease-out ${isPaused ? 'bg-amber-400/80' : 'bg-white'}`,
                         style: { width: `${progressState.percent}%` }
                     })
                 ),
-                e('div', { className: 'flex justify-between items-center pt-0.5' },
+                e('div', { className: 'flex justify-between items-center pt-1 border-t border-white/10' },
                     e('button', {
                         onClick: () => setIsPaused(!isPaused),
-                        className: 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 px-2.5 py-1 rounded-md text-xs font-light transition-all cursor-pointer flex items-center space-x-1'
-                    }, isPaused ? 'Resume Download' : 'Pause Download'),
+                        className: 'bg-white/5 hover:bg-white/10 text-neutral-300 border border-white/10 px-2.5 py-1.5 rounded-md text-xs font-light transition-all cursor-pointer flex items-center space-x-1.5'
+                    }, isPaused ? 'Resume' : 'Pause'),
                     e('button', {
                         onClick: () => {
                             if (abortControllerRef.current) abortControllerRef.current.abort();
                             onClose();
                         },
-                        className: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1 rounded-md text-xs font-light transition-all cursor-pointer'
+                        className: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-md text-xs font-light transition-all cursor-pointer'
                     }, 'Cancel')
                 )
             ),
 
-            hasError && e('div', { className: 'text-red-400 text-xs text-center py-2' }, 'Failed to load preview.'),
+            hasError && e('div', { className: 'text-red-400 text-xs font-light text-center py-2' }, 'Failed to load preview.'),
 
-            // Insert Button (enabled once loaded or available)
             e('button', {
                 onClick: onInsert,
                 disabled: !videoBlobUrl && progressState.percent < 100,
-                className: `w-full font-medium py-2.5 rounded-md text-xs transition-all shadow-lg ${videoBlobUrl ? 'bg-white text-black hover:bg-neutral-200 cursor-pointer' : 'bg-white/20 text-white/50 cursor-not-allowed'}`
-            }, 'Insert')
+                className: `w-full font-normal py-2.5 rounded-xl text-xs tracking-wide transition-all duration-200 shadow-lg border ${videoBlobUrl ? 'bg-white/10 hover:bg-white/20 text-white border-white/20 hover:border-white/30 cursor-pointer active:scale-95' : 'bg-white/5 text-neutral-500 border-white/5 cursor-not-allowed'}`
+            }, 'Insert GIF')
         )
     );
 }

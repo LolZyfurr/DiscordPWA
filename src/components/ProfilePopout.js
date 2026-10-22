@@ -184,7 +184,7 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                 animation: !isDesktop && (isDragging || translateY > 0) ? 'none' : undefined
             },
             className: `
-                z-50 bg-[#000000] text-[#f5f5f7] shadow-2xl overflow-y-auto border border-white/10
+                z-50 bg-[#000000] text-neutral-100 shadow-2xl overflow-y-auto border border-white/10
                 fixed inset-x-0 bottom-0 w-full rounded-t-3xl pb-safe min-h-[80%] animate-slide-up
                 md:inset-auto md:bottom-auto md:rounded-2xl md:w-80 md:min-h-0 md:animate-none transition-all duration-200 ease-in-out
                 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden
@@ -212,7 +212,7 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                     onClick: (eEvt) => eEvt.stopPropagation(),
                     className: 'absolute top-3 right-3 flex items-center space-x-2 z-10'
                 },
-                    e('button', { className: 'bg-black/60 hover:bg-black/90 text-neutral-300 hover:text-white rounded-full p-2 border border-white/10 transition-all duration-200 ease-in-out hover:scale-105' },
+                    e('button', { className: 'bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full p-2 border border-white/10 transition-all duration-200 ease-in-out cursor-pointer' },
                         e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', viewBox: '0 0 24 24' },
                             e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z' })
                         )
@@ -223,7 +223,7 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                                 eEvt.stopPropagation();
                                 setShowProfileMenu(!showProfileMenu);
                             },
-                            className: 'bg-black/60 hover:bg-black/90 text-neutral-300 hover:text-white rounded-full p-2 block border border-white/10 transition-all duration-200 ease-in-out hover:scale-105'
+                            className: 'bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white rounded-full p-2 border border-white/10 transition-all duration-200 ease-in-out cursor-pointer'
                         },
                             e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', viewBox: '0 0 24 24' },
                                 e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z' })

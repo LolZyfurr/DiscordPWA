@@ -74,7 +74,7 @@ export default function ChatModals({
 
         // Fullscreen Staged Image View Modal
         fullscreenFileIndex !== null && stagedFiles[fullscreenFileIndex] && e('div', {
-            className: 'fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn'
+            className: 'fixed inset-0 bg-black/85 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn'
         },
             e('div', { className: 'absolute top-6 right-6 flex items-center space-x-2 bg-[#0a0a0a] px-3.5 py-2 rounded-lg border border-white/10 shadow-2xl text-neutral-300' },
                 e('button', {
@@ -127,7 +127,7 @@ export default function ChatModals({
 
         // Fullscreen Image Gallery Modal (handles both messages and profile banners/avatars)
         messageFullscreen !== null && messageFullscreen.images[messageFullscreen.index] && e('div', {
-            className: 'fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn',
+            className: 'fixed inset-0 bg-black/85 z-50 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-fadeIn',
             onTouchStart,
             onTouchMove,
             onTouchEnd
@@ -224,7 +224,7 @@ export default function ChatModals({
         ),
 
         // Modal for editing attachment file name
-        editingFileIndex !== null && e('div', { className: 'fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm animate-fadeIn' },
+        editingFileIndex !== null && e('div', { className: 'fixed inset-0 bg-black/85 z-50 flex items-center justify-center backdrop-blur-md animate-fadeIn' },
             e('div', { className: 'bg-[#0a0a0a] border border-white/10 rounded-xl p-5 w-80 shadow-2xl flex flex-col space-y-4' },
                 e('span', { className: 'text-white font-normal text-sm tracking-wide' }, 'Edit File Name'),
                 e('input', {

@@ -5,7 +5,6 @@ import GifPreviewModal from './GifPreviewModal.js';
 
 const e = React.createElement;
 
-// In-memory search results cache to eliminate redundant network overhead for present/past queries
 const searchCache = new Map();
 const MAX_SEARCH_CACHE_SIZE = 40;
 
@@ -45,7 +44,6 @@ export default function GifPickerView({
         const trimmedQuery = (query || 'cat').trim();
         if (!token || selectedGif || !showGifPicker) return;
 
-        // Serve instantly from cache if this search query was previously fetched
         if (searchCache.has(trimmedQuery)) {
             setGifResults(searchCache.get(trimmedQuery));
             setIsSearchingGifs(false);
@@ -53,7 +51,6 @@ export default function GifPickerView({
             return;
         }
 
-        // On slow 3G/4G connections, prevent automatic default loading if query is empty
         if (isLowEndNetwork && !gifSearchQuery.trim() && trimmedQuery === 'cat') {
             setIsSearchingGifs(false);
             return;
@@ -85,7 +82,6 @@ export default function GifPickerView({
         }
     };
 
-    // Optimized search and debounce effect with zero background overhead when picker is closed or on slow networks
     React.useEffect(() => {
         if (!showGifPicker || selectedGif || !token) {
             if (abortControllerRef.current) {
@@ -96,7 +92,6 @@ export default function GifPickerView({
 
         const trimmedQuery = gifSearchQuery.trim();
 
-        // On slow 3G/4G connections without an active query, avoid background loading/fetching entirely
         if (isLowEndNetwork && !trimmedQuery) {
             setGifResults([]);
             setIsSearchingGifs(false);
@@ -131,13 +126,12 @@ export default function GifPickerView({
 
     return e('div', {
         ref: pickerRef,
-        className: 'bg-[#000000] border border-white/10 p-3 flex flex-col space-y-3 z-35 sm:z-[99] max-h-[450px] rounded-t-lg sm:rounded-lg backdrop-blur-md font-sans text-xs tracking-wide sm:fixed sm:bottom-20 sm:right-4 sm:w-80 shadow-2xl'
+        className: 'bg-[#000000] border border-white/10 p-3 flex flex-col space-y-3 z-35 sm:z-[99] max-h-[450px] rounded-t-2xl sm:rounded-2xl backdrop-blur-md font-sans text-xs tracking-wide sm:fixed sm:bottom-20 sm:right-4 sm:w-80 shadow-2xl animate-slide-up'
     },
-        // Search bar & header
-        e('div', { className: 'flex items-center gap-2 pb-2 border-b border-white/10' },
+        e('div', { className: 'flex items-center gap-2 pb-2.5 border-b border-white/10' },
             e('div', { className: 'relative flex-1 flex items-center' },
                 e('svg', {
-                    className: 'absolute left-2.5 w-3.5 h-3.5 text-neutral-400 pointer-events-none',
+                    className: 'absolute left-3 w-3.5 h-3.5 text-neutral-400 pointer-events-none',
                     fill: 'none',
                     stroke: 'currentColor',
                     strokeWidth: '1.5',
@@ -151,13 +145,13 @@ export default function GifPickerView({
                     onChange: (event) => setGifSearchQuery(event.target.value),
                     disabled: Boolean(selectedGif),
                     placeholder: isLowEndNetwork ? 'Search KLIPY (Lite Mode)...' : 'Search KLIPY GIFs...',
-                    className: 'w-full bg-[#0a0a0a] border border-white/10 rounded-md pl-8 pr-3 py-1.5 text-xs text-white placeholder-neutral-500 font-light tracking-wide focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 transition-all duration-200'
+                    className: 'w-full bg-[#050505] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-neutral-500 font-light tracking-wide focus:outline-none focus:border-white/30 transition-all duration-200'
                 })
             ),
             e('button', {
                 onClick: () => setShowGifPicker(false),
                 ariaLabel: 'Close GIF picker',
-                className: 'flex items-center justify-center w-7 h-7 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all cursor-pointer'
+                className: 'flex items-center justify-center w-7 h-7 rounded-lg text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all cursor-pointer'
             },
                 e('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', viewBox: '0 0 24 24' },
                     e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M6 18L18 6M6 6l12 12' })
@@ -165,26 +159,24 @@ export default function GifPickerView({
             )
         ),
 
-        // Results scroll container
-        e('div', { className: 'overflow-y-auto max-h-[360px] pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent' },
+        e('div', { className: 'overflow-y-auto max-h-[360px] pr-1 scrollbar-none' },
             isSearchingGifs && gifResults.length === 0
                 ? e('div', { className: 'grid grid-cols-2 gap-2' },
                     [1, 2, 3, 4].map(n =>
-                        e('div', { key: n, className: 'w-full h-24 bg-neutral-900/80 animate-pulse rounded-md border border-white/5' })
+                        e('div', { key: n, className: 'w-full h-24 bg-neutral-900/80 animate-pulse rounded-xl border border-white/5' })
                     )
                 )
                 : hasError
                     ? e('div', { className: 'flex flex-col items-center justify-center py-6 text-center space-y-2' },
-                        e('span', { className: 'text-neutral-400 text-[11px]' }, 'Network connection unstable'),
+                        e('span', { className: 'text-neutral-400 text-xs font-light' }, 'Network connection unstable'),
                         e('button', {
                             onClick: () => loadGifs(gifSearchQuery || 'cat'),
-                            className: 'bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded text-[11px] cursor-pointer'
+                            className: 'bg-white/10 hover:bg-white/20 text-white border border-white/20 px-3 py-1.5 rounded-md text-xs font-light cursor-pointer transition-all'
                         }, 'Tap to Retry')
                     )
                     : gifResults.length === 0
-                        ? e('div', { className: 'flex items-center justify-center py-8 text-neutral-500 font-light text-[11px] uppercase tracking-wider' }, 'No GIFs found')
+                        ? e('div', { className: 'flex items-center justify-center py-8 text-neutral-500 font-light text-xs uppercase tracking-wider' }, 'No GIFs found')
                         : e('div', { className: 'grid grid-cols-2 gap-2 items-start' },
-                            // Column 1
                             e('div', { className: 'flex flex-col space-y-2' },
                                 gifResults.filter((_, idx) => idx % 2 === 0).map((gif) => {
                                     return e(GifItem, {
@@ -195,7 +187,6 @@ export default function GifPickerView({
                                     });
                                 })
                             ),
-                            // Column 2
                             e('div', { className: 'flex flex-col space-y-2' },
                                 gifResults.filter((_, idx) => idx % 2 !== 0).map((gif) => {
                                     return e(GifItem, {
@@ -209,7 +200,6 @@ export default function GifPickerView({
                         )
         ),
 
-        // Modal Preview with Stream Progress
         selectedGif && e(GifPreviewModal, {
             gif: selectedGif,
             onClose: () => setSelectedGif(null),

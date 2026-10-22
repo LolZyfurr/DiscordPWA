@@ -19,8 +19,8 @@ export default function DeleteModal({
 }) {
     if (!deleteModal) return null;
 
-    return e('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md animate-slide-up p-4' },
-        e('div', { className: 'bg-[#000000] border border-white/10 rounded-lg p-6 w-full max-w-md shadow-2xl flex flex-col space-y-5' },
+    return e('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md animate-fadeIn p-4' },
+        e('div', { className: 'bg-[#0a0a0a] border border-white/10 rounded-xl p-6 w-full max-w-md shadow-2xl flex flex-col space-y-5' },
             e('div', { className: 'flex flex-col space-y-1.5' },
                 e('h3', { className: 'text-sm font-normal text-white tracking-wide' },
                     deleteModal.status === 'pending'

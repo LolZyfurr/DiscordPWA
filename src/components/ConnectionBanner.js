@@ -44,17 +44,17 @@ export default function ConnectionBanner({
 
     if (!connectionBanner) return null;
 
-    return e('div', { className: `${connectionBanner.bg} border-b px-4 py-2.5 flex items-center justify-between text-xs font-light z-30 shrink-0 transition-all duration-300` },
+    return e('div', { className: `${connectionBanner.bg} border-b border-white/10 px-4 py-2.5 flex items-center justify-between text-xs font-light z-30 shrink-0 transition-all duration-300` },
         e('div', { className: 'flex items-center space-x-2 truncate pr-2' },
             e('span', { className: `w-2 h-2 rounded-full shrink-0 ${connectionBanner.dot}` }),
-            e('span', { className: 'font-medium truncate' }, connectionBanner.text)
+            e('span', { className: 'font-normal truncate tracking-wide text-neutral-100' }, connectionBanner.text)
         ),
         connectionBanner.actionText && e('button', {
             onClick: () => {
                 setAuthFailed(false);
                 AppDispatcher.dispatch({ type: 'SET_TOKEN', token: '' });
             },
-            className: 'bg-white/10 hover:bg-white/25 text-white border border-white/20 px-2.5 py-1 rounded-md text-xs font-medium cursor-pointer shrink-0 transition-colors duration-200'
+            className: 'bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-white/30 px-3 py-1.5 rounded-md text-xs font-light tracking-wide cursor-pointer shrink-0 transition-all duration-200'
         }, connectionBanner.actionText)
     );
 }

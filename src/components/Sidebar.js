@@ -53,7 +53,7 @@ export default function Sidebar({ state, mobileView, setMobileView, fetchUserPro
                         AppDispatcher.dispatch({ type: 'SELECT_CHANNEL', channelId: ch.id });
                         setMobileView('chat');
                     },
-                    className: `group px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-all duration-200 ease-in-out flex items-center space-x-3 border ${isActive
+                    className: `group px-3 py-2.5 rounded-xl cursor-pointer text-sm transition-all duration-200 ease-in-out flex items-center space-x-3 border ${isActive
                         ? 'bg-white/[0.06] border-white/20 text-white font-normal shadow-sm'
                         : 'bg-transparent border-transparent text-neutral-400 hover:bg-white/[0.03] hover:border-white/10 hover:text-neutral-200'
                         }`
@@ -71,7 +71,7 @@ export default function Sidebar({ state, mobileView, setMobileView, fetchUserPro
         ),
         state.user && e('div', { className: 'p-3 bg-[#050505] border-t border-white/10 flex items-center justify-between pb-safe' },
             e('div', {
-                className: 'flex items-center space-x-3 flex-1 min-w-0 cursor-pointer group py-1 px-1.5 rounded-lg hover:bg-white/[0.04] transition-all duration-200',
+                className: 'flex items-center space-x-3 flex-1 min-w-0 cursor-pointer group py-1.5 px-2 rounded-xl hover:bg-white/[0.04] transition-all duration-200',
                 onClick: (eEvt) => fetchUserProfile(state.user.id, eEvt)
             },
                 e('img', {
@@ -85,7 +85,7 @@ export default function Sidebar({ state, mobileView, setMobileView, fetchUserPro
                 )
             ),
             e('button', {
-                className: 'p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/10 transition-all duration-200',
+                className: 'p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition-all duration-200 cursor-pointer',
                 title: 'Settings'
             },
                 e('svg', {
