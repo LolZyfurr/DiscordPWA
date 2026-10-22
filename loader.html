@@ -6,6 +6,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Loader</title>
     <script>
+        // Virtual Temporary LocalStorage Shim for restricted environments (data: URLs, sandboxes)
+        (function () {
+            const memoryStorage = (() => {
+                let store = {};
+                return {
+                    get length() {
+                        return Object.keys(store).length;
+                    },
+                    getItem(key) {
+                        return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null;
+                    },
+                    setItem(key, value) {
+                        store[key] = String(value);
+                    },
+                    removeItem(key) {
+                        delete store[key];
+                    },
+                    clear() {
+                        store = {};
+                    },
+                    key(index) {
+                        const keys = Object.keys(store);
+                        return keys[index] !== undefined ? keys[index] : null;
+                    }
+                };
+            })();
+
+            try {
+                // Test if native localStorage is accessible and functional
+                const testKey = '__test_ls__';
+                window.localStorage.setItem(testKey, testKey);
+                window.localStorage.removeItem(testKey);
+            } catch (e) {
+                // Native localStorage is blocked or throws SecurityError (e.g., inside data: URLs)
+                try {
+                    Object.defineProperty(window, 'localStorage', {
+                        value: memoryStorage,
+                        writable: true,
+                        configurable: true
+                    });
+                } catch (err) {
+                    window.localStorage = memoryStorage;
+                }
+            }
+        })();
+
         (function () {
             // Configuration for your GitHub project via jsDelivr
             const GITHUB_USER = 'LolZyfurr';
