@@ -182,7 +182,20 @@ export default function App() {
                 } else if (status === 'dnd') {
                     channelSubtext = 'Notifications Silenced';
                 } else {
-                    channelSubtext = recipient.username;
+                    const lastActive = presence.last_seen || presence.last_active || recipient.last_seen;
+                    if (lastActive) {
+                        const diff = Date.now() - new Date(lastActive).getTime();
+                        const mins = Math.floor(diff / 60000);
+                        const hours = Math.floor(mins / 60);
+                        const days = Math.floor(hours / 24);
+                        if (mins < 1) channelSubtext = 'Active just now';
+                        else if (mins < 60) channelSubtext = `Active ${mins}m ago`;
+                        else if (hours < 24) channelSubtext = `Active ${hours}h ago`;
+                        else if (days === 1) channelSubtext = 'Active yesterday';
+                        else channelSubtext = `Active ${days}d ago`;
+                    } else {
+                        channelSubtext = recipient.username;
+                    }
                 }
             } else {
                 channelDisplayName = channelName;

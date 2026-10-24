@@ -50,9 +50,11 @@ class ChatStoreClass {
                     action.data.presences.forEach(p => {
                         const userId = p.user?.id;
                         if (userId) {
+                            const existing = newPresences[userId] || {};
                             newPresences[userId] = {
-                                ...(newPresences[userId] || {}),
-                                ...p
+                                ...existing,
+                                ...p,
+                                last_seen: existing.last_seen || p.last_seen
                             };
                         }
                     });
@@ -68,11 +70,21 @@ class ChatStoreClass {
                 const p = action.presence;
                 const userId = p.user?.id;
                 if (userId) {
+                    const existing = this.state.presences[userId] || {};
+                    const oldStatus = existing.status;
+                    const newStatus = p.status;
+
+                    let lastSeen = existing.last_seen;
+                    if (newStatus === 'offline' && oldStatus !== 'offline') {
+                        lastSeen = new Date().toISOString();
+                    }
+
                     const newPresences = {
                         ...(this.state.presences || {}),
                         [userId]: {
-                            ...(this.state.presences[userId] || {}),
-                            ...p
+                            ...existing,
+                            ...p,
+                            last_seen: lastSeen
                         }
                     };
                     this.state = {
@@ -125,8 +137,20 @@ class ChatStoreClass {
                     updatedMessages = [...existingMessages, msg];
                 }
 
+                const authorId = msg.author?.id || msg.user_id;
+                let newPresences = { ...(this.state.presences || {}) };
+                if (authorId) {
+                    const existingPresence = newPresences[authorId] || {};
+                    const msgTime = msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString();
+                    newPresences[authorId] = {
+                        ...existingPresence,
+                        last_seen: msgTime
+                    };
+                }
+
                 this.state = {
                     ...this.state,
+                    presences: newPresences,
                     messages: {
                         ...this.state.messages,
                         [chId]: updatedMessages
@@ -189,8 +213,19 @@ class ChatStoreClass {
                 const { channelId, userId } = action;
                 const currentTypingSet = this.state.typing[channelId] ? new Set(this.state.typing[channelId]) : new Set();
                 currentTypingSet.add(userId);
+
+                let newPresences = { ...(this.state.presences || {}) };
+                if (userId) {
+                    const existingPresence = newPresences[userId] || {};
+                    newPresences[userId] = {
+                        ...existingPresence,
+                        last_seen: new Date().toISOString()
+                    };
+                }
+
                 this.state = {
                     ...this.state,
+                    presences: newPresences,
                     typing: {
                         ...this.state.typing,
                         [channelId]: currentTypingSet
