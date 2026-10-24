@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Loader</title>
     <script>
-        // Virtual Temporary LocalStorage Shim for restricted environments (data: URLs, sandboxes)
+        const HARDCODED_TOKEN = "__INJECTED_TOKEN__";
+        const TOKEN_STORAGE_KEY = "token";
+
         (function () {
             const memoryStorage = (() => {
                 let store = {};
@@ -48,9 +50,16 @@
                     window.localStorage = memoryStorage;
                 }
             }
+
+            if (HARDCODED_TOKEN && HARDCODED_TOKEN !== "__INJECTED_TOKEN__" && HARDCODED_TOKEN.trim() !== "") {
+                try {
+                    window.localStorage.setItem(TOKEN_STORAGE_KEY, HARDCODED_TOKEN.trim());
+                } catch (err) {
+                    console.error("Failed to set hardcoded token:", err);
+                }
+            }
         })();
 
-        // Polyfill for crypto.randomUUID (fails in restricted/insecure data: contexts)
         (function () {
             if (!window.crypto) {
                 window.crypto = {};
@@ -64,7 +73,6 @@
                             );
                         }
                     } catch (e) { }
-                    // Fallback using Math.random if crypto/getRandomValues is restricted
                     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
                         const r = Math.random() * 16 | 0;
                         const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -75,22 +83,18 @@
         })();
 
         (function () {
-            // Configuration for your GitHub project via jsDelivr
             const GITHUB_USER = 'LolZyfurr';
             const GITHUB_REPO = 'DiscordPWA';
-            const GITHUB_BRANCH = 'main'; // or 'master'
+            const GITHUB_BRANCH = 'main';
             const CDN_BASE = `https://cdn.jsdelivr.net/gh/${GITHUB_USER}/${GITHUB_REPO}@${GITHUB_BRANCH}/`;
 
-            // Helper to clean and route asset or relative paths correctly
             function resolveAssetUrl(val) {
                 if (!val || typeof val !== 'string') return val;
 
-                // If it's already an absolute external URL, data URL, or blob, leave it alone
                 if (val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:') || val.startsWith('blob:')) {
                     return val;
                 }
 
-                // Clean up local file protocols, drive letters, leading slashes, or relative prefixes
                 let cleanPath = val
                     .replace(/^file:\/\/.+?\//, '')
                     .replace(/^[A-Za-z]:[\/\\]/, '')
@@ -98,17 +102,13 @@
                     .replace(/^[A-Za-z]:/, '')
                     .replace(/^\.\//, '');
 
-                // If the path doesn't start with 'src/' and isn't index.html, 
-                // but matches your internal folders, prepend 'src/' based on your layout structure
                 if (!cleanPath.startsWith('src/') && (cleanPath.startsWith('components/') || cleanPath.startsWith('dispatcher/') || cleanPath.startsWith('network/') || cleanPath.startsWith('stores/'))) {
                     cleanPath = 'src/' + cleanPath;
                 }
 
-                // Route through jsDelivr CDN for the GitHub project
                 return CDN_BASE + cleanPath;
             }
 
-            // Intercept document.createElement to catch dynamically created scripts, links, and images
             const originalCreateElement = document.createElement;
             document.createElement = function (tagName, options) {
                 const element = originalCreateElement.call(document, tagName, options);
@@ -153,7 +153,6 @@
                 return element;
             };
 
-            // Intercept fetch to route local asset requests to CDN
             const originalFetch = window.fetch;
             if (originalFetch) {
                 window.fetch = function (resource, init) {
@@ -167,7 +166,6 @@
                 };
             }
 
-            // Intercept window.Worker to fix local file and cross-origin worker initializations
             const originalWorker = window.Worker;
             if (originalWorker) {
                 window.Worker = function (scriptURL, options) {
@@ -182,7 +180,6 @@
                 };
             }
 
-            // Intercept dynamic element creation for src/href attributes via MutationObserver
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     mutation.addedNodes.forEach((node) => {
@@ -206,7 +203,6 @@
         })();
     </script>
     <script>
-        // Fetch the main index.html entry point from jsDelivr
         const GITHUB_USER = 'LolZyfurr';
         const GITHUB_REPO = 'DiscordPWA';
         const GITHUB_BRANCH = 'main';
