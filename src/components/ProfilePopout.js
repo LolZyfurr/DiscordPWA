@@ -2,6 +2,7 @@ import React from 'https://esm.sh/react@18';
 import { fetchGames } from '../network/api.js';
 import { ChatStore } from '../stores/ChatStore.js';
 import { AppDispatcher } from '../dispatcher/Dispatcher.js';
+import ContextMenu from './ContextMenu.js';
 
 const e = React.createElement;
 
@@ -83,10 +84,9 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
         const diffX = currentX - touchStartXRef.current;
 
         if (!isDragging) {
-            // Only start dragging if vertical swipe down is dominant and exceeds a 10px threshold
             if (diffY > 10 && Math.abs(diffY) > Math.abs(diffX)) {
                 setIsDragging(true);
-                touchStartYRef.current = currentY - diffY; // adjust starting point smoothly
+                touchStartYRef.current = currentY - diffY;
             }
             return;
         }
@@ -229,53 +229,49 @@ export default function ProfilePopout({ selectedProfile, setSelectedProfile, pop
                                 e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z' })
                             )
                         ),
-                        showProfileMenu && e(React.Fragment, null,
-                            e('div', {
-                                onClick: () => setShowProfileMenu(false),
-                                className: 'fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm'
-                            }),
-                            e('div', {
-                                className: `
-                                    z-50 bg-[#0a0a0a] border border-white/10 shadow-2xl flex flex-col text-sm h-fit
-                                    fixed inset-x-0 bottom-0 rounded-t-xl p-3 space-y-1 pb-safe animate-slide-up
-                                    md:absolute md:inset-x-auto md:top-full md:right-0 md:mt-1.5 md:w-44 md:rounded-lg md:p-1 md:space-y-0
-                                `
+                        e(ContextMenu, {
+                            isOpen: showProfileMenu,
+                            onClose: () => setShowProfileMenu(false),
+                            desktopPosition: 'top-full md:right-0 md:mt-1.5',
+                            widthClass: 'md:w-48'
+                        },
+                            e('button', {
+                                onClick: () => {
+                                    navigator.clipboard.writeText(selectedProfile.user.id);
+                                    setShowProfileMenu(false);
+                                },
+                                className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
                             },
-                                e('div', { className: 'hidden md:block px-3 py-1.5 text-[10px] font-light uppercase tracking-wider text-neutral-500 border-b border-white/10 mb-1' }, 'Options'),
-                                e('button', {
-                                    onClick: () => {
-                                        navigator.clipboard.writeText(selectedProfile.user.id);
-                                        setShowProfileMenu(false);
-                                    },
-                                    className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                                }, 'Copy User ID'),
-                                e('button', {
-                                    onClick: () => {
-                                        navigator.clipboard.writeText(selectedProfile.user.username);
-                                        setShowProfileMenu(false);
-                                    },
-                                    className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                                }, 'Copy Username'),
-                                selectedProfile.user.banner && e('button', {
-                                    onClick: () => {
-                                        const bannerUrl = `https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${selectedProfile.user.banner}.${selectedProfile.user.banner.startsWith('a_') ? 'gif' : 'png'}?size=600`;
-                                        navigator.clipboard.writeText(bannerUrl);
-                                        setShowProfileMenu(false);
-                                    },
-                                    className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                                }, 'Copy Banner URL'),
-                                selectedProfile.user.avatar && e('button', {
-                                    onClick: () => {
-                                        const avatarUrl = `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.${selectedProfile.user.avatar.startsWith('a_') ? 'gif' : 'png'}?size=600`;
-                                        navigator.clipboard.writeText(avatarUrl);
-                                        setShowProfileMenu(false);
-                                    },
-                                    className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-md transition-all duration-200'
-                                }, 'Copy Avatar URL'),
-                                e('button', {
-                                    onClick: () => setShowProfileMenu(false),
-                                    className: 'mt-2 md:hidden px-3 py-2 text-center bg-white/10 hover:bg-white/20 text-white font-normal rounded-md transition-all duration-200'
-                                }, 'Cancel')
+                                e('span', {}, 'Copy User ID')
+                            ),
+                            e('button', {
+                                onClick: () => {
+                                    navigator.clipboard.writeText(selectedProfile.user.username);
+                                    setShowProfileMenu(false);
+                                },
+                                className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                            },
+                                e('span', {}, 'Copy Username')
+                            ),
+                            selectedProfile.user.banner && e('button', {
+                                onClick: () => {
+                                    const bannerUrl = `https://cdn.discordapp.com/banners/${selectedProfile.user.id}/${selectedProfile.user.banner}.${selectedProfile.user.banner.startsWith('a_') ? 'gif' : 'png'}?size=600`;
+                                    navigator.clipboard.writeText(bannerUrl);
+                                    setShowProfileMenu(false);
+                                },
+                                className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                            },
+                                e('span', {}, 'Copy Banner URL')
+                            ),
+                            selectedProfile.user.avatar && e('button', {
+                                onClick: () => {
+                                    const avatarUrl = `https://cdn.discordapp.com/avatars/${selectedProfile.user.id}/${selectedProfile.user.avatar}.${selectedProfile.user.avatar.startsWith('a_') ? 'gif' : 'png'}?size=600`;
+                                    navigator.clipboard.writeText(avatarUrl);
+                                    setShowProfileMenu(false);
+                                },
+                                className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                            },
+                                e('span', {}, 'Copy Avatar URL')
                             )
                         )
                     )

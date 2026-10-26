@@ -1,5 +1,6 @@
 import React from 'https://esm.sh/react@18';
 import AudioPlayerEmbed from './AudioPlayerEmbed.js';
+import ContextMenu from './ContextMenu.js';
 
 const e = React.createElement;
 
@@ -196,91 +197,133 @@ export default function ChatMessageItem({
                         e('circle', { cx: '12', cy: '19', r: '1' })
                     )
                 ),
-                showMenu && e(React.Fragment, null,
-                    e('div', {
-                        onClick: () => setActiveMenuMsgId(null),
-                        className: 'fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm'
-                    }),
-                    e('div', {
-                        className: `
-                            z-50 bg-[#000000] border border-white/10 shadow-2xl flex flex-col text-sm
-                            fixed inset-x-0 bottom-0 rounded-t-2xl p-3 space-y-1 pb-safe animate-slide-up
-                            md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1.5 md:w-44 md:rounded-2xl md:p-1.5 md:space-y-0.5
-                        `
-                    },
-                        e('div', { className: 'hidden md:block px-3 py-1.5 text-[10px] font-light uppercase tracking-wider text-neutral-500 border-b border-white/10 mb-1' }, 'Options'),
-                        isPending
-                            ? e('button', {
-                                onClick: () => {
-                                    setActiveMenuMsgId(null);
-                                    if (handleRemoveLocalMessage) {
-                                        handleRemoveLocalMessage(m.id);
-                                    } else if (handleDeleteMessage) {
-                                        handleDeleteMessage(m.id);
-                                    }
+                e(ContextMenu, {
+                    isOpen: showMenu,
+                    onClose: () => setActiveMenuMsgId(null),
+                    desktopPosition: 'bottom-full md:right-0 md:mb-1.5',
+                    widthClass: 'md:w-52'
+                },
+                    isPending
+                        ? e('button', {
+                            onClick: () => {
+                                setActiveMenuMsgId(null);
+                                if (handleRemoveLocalMessage) {
+                                    handleRemoveLocalMessage(m.id);
+                                } else if (handleDeleteMessage) {
+                                    handleDeleteMessage(m.id);
+                                }
+                            },
+                            className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
+                        },
+                            e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                e('path', { d: 'M18 6 6 18' }),
+                                e('path', { d: 'm6 6 12 12' })
+                            ),
+                            e('span', {}, 'Cancel Send')
+                        )
+                        : isFailed
+                            ? e(React.Fragment, null,
+                                e('button', {
+                                    onClick: () => {
+                                        setActiveMenuMsgId(null);
+                                        if (handleRetryMessage) handleRetryMessage(m);
+                                    },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
                                 },
-                                className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
-                            }, 'Cancel')
-                            : isFailed
-                                ? e(React.Fragment, null,
-                                    e('button', {
-                                        onClick: () => {
-                                            setActiveMenuMsgId(null);
-                                            if (handleRetryMessage) handleRetryMessage(m);
-                                        },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Retry'),
-                                    e('button', {
-                                        onClick: () => {
-                                            setActiveMenuMsgId(null);
-                                            if (handleRemoveLocalMessage) {
-                                                handleRemoveLocalMessage(m.id);
-                                            } else if (handleDeleteMessage) {
-                                                handleDeleteMessage(m.id);
-                                            }
-                                        },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Remove')
-                                )
-                                : e(React.Fragment, null,
-                                    e('button', {
-                                        onClick: () => { setReplyingTo(m); setActiveMenuMsgId(null); },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Reply'),
-                                    m.content && e('button', {
-                                        onClick: () => {
-                                            navigator.clipboard.writeText(m.content);
-                                            setActiveMenuMsgId(null);
-                                        },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Copy Content'),
-                                    isOwn && e('button', {
-                                        onClick: () => { setEditingMessageId(m.id); setText(m.content); setActiveMenuMsgId(null); },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Edit'),
-                                    isOwn && e('button', {
-                                        onClick: () => {
-                                            setIsSelectMode(true);
-                                            setSelectedMsgIds(new Set([m.id]));
-                                            setActiveMenuMsgId(null);
-                                        },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Select Messages'),
-                                    isOwn && e('button', {
-                                        onClick: () => {
-                                            setActiveMenuMsgId(null);
-                                            if (setDeleteModal) {
-                                                setDeleteModal({ type: 'single', ids: [m.id], status: 'prompt' });
-                                            }
-                                        },
-                                        className: 'px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
-                                    }, 'Delete')
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' }),
+                                        e('path', { d: 'M3 3v5h5' })
+                                    ),
+                                    e('span', {}, 'Retry Message')
                                 ),
-                        e('button', {
-                            onClick: () => setActiveMenuMsgId(null),
-                            className: 'mt-2 md:hidden px-3 py-2 text-center bg-white/10 hover:bg-white/20 text-white font-normal rounded-xl transition-all duration-200 cursor-pointer'
-                        }, 'Cancel')
-                    )
+                                e('button', {
+                                    onClick: () => {
+                                        setActiveMenuMsgId(null);
+                                        if (handleRemoveLocalMessage) {
+                                            handleRemoveLocalMessage(m.id);
+                                        } else if (handleDeleteMessage) {
+                                            handleDeleteMessage(m.id);
+                                        }
+                                    },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M10 11v6' }),
+                                        e('path', { d: 'M14 11v6' }),
+                                        e('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' }),
+                                        e('path', { d: 'M3 6h18' }),
+                                        e('path', { d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })
+                                    ),
+                                    e('span', {}, 'Remove Message')
+                                )
+                            )
+                            : e(React.Fragment, null,
+                                e('button', {
+                                    onClick: () => { setReplyingTo(m); setActiveMenuMsgId(null); },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' }),
+                                        e('path', { d: 'M3 3v5h5' })
+                                    ),
+                                    e('span', {}, 'Reply Message')
+                                ),
+                                m.content && e('button', {
+                                    onClick: () => {
+                                        navigator.clipboard.writeText(m.content);
+                                        setActiveMenuMsgId(null);
+                                    },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }),
+                                        e('path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' })
+                                    ),
+                                    e('span', {}, 'Copy Content')
+                                ),
+                                isOwn && e('button', {
+                                    onClick: () => { setEditingMessageId(m.id); setText(m.content); setActiveMenuMsgId(null); },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z' }),
+                                        e('path', { d: 'm15 5 4 4' })
+                                    ),
+                                    e('span', {}, 'Edit Message')
+                                ),
+                                isOwn && e('button', {
+                                    onClick: () => {
+                                        setIsSelectMode(true);
+                                        setSelectedMsgIds(new Set([m.id]));
+                                        setActiveMenuMsgId(null);
+                                    },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-white/[0.05] text-neutral-200 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M18 6 6 18' }),
+                                        e('path', { d: 'm6 6 12 12' })
+                                    ),
+                                    e('span', {}, 'Select Messages')
+                                ),
+                                isOwn && e('button', {
+                                    onClick: () => {
+                                        setActiveMenuMsgId(null);
+                                        if (setDeleteModal) {
+                                            setDeleteModal({ type: 'single', ids: [m.id], status: 'prompt' });
+                                        }
+                                    },
+                                    className: 'flex items-center space-x-2.5 w-full px-3 py-2 md:py-1.5 text-left font-light hover:bg-red-500/10 text-red-400 rounded-xl transition-all duration-200 cursor-pointer'
+                                },
+                                    e('svg', { xmlns: 'http://www.w3.org/2000/svg', width: '16', height: '16', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round', className: 'w-4 h-4 shrink-0' },
+                                        e('path', { d: 'M10 11v6' }),
+                                        e('path', { d: 'M14 11v6' }),
+                                        e('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' }),
+                                        e('path', { d: 'M3 6h18' }),
+                                        e('path', { d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' })
+                                    ),
+                                    e('span', {}, 'Delete Message')
+                                )
+                            )
                 )
             )
         )
