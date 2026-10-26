@@ -53,6 +53,15 @@ export default function ChatMessageItem({
         ...gifvEmbeds.map(emb => ({ type: 'video', url: emb.video?.url, poster: emb.thumbnail?.url }))
     ];
 
+    // Hardcoded quick actions / reactions for messages
+    const messageQuickActions = [
+        { icon: '👍', label: 'Thumbs Up', onClick: () => console.log(`Quick action pressed: 👍 (Thumbs Up) on message ${m.id}`) },
+        { icon: '❤️', label: 'Heart', onClick: () => console.log(`Quick action pressed: ❤️ (Heart) on message ${m.id}`) },
+        { icon: '😂', label: 'Laugh', onClick: () => console.log(`Quick action pressed: 😂 (Laugh) on message ${m.id}`) },
+        { icon: '🔥', label: 'Fire', onClick: () => console.log(`Quick action pressed: 🔥 (Fire) on message ${m.id}`) },
+        { icon: '🎉', label: 'Party', onClick: () => console.log(`Quick action pressed: 🎉 (Party) on message ${m.id}`) }
+    ];
+
     return e('div', {
         key: m.id,
         id: `message-${m.id}`,
@@ -63,6 +72,11 @@ export default function ChatMessageItem({
                 else next.add(m.id);
                 setSelectedMsgIds(next);
             }
+        },
+        onContextMenu: (eEvt) => {
+            eEvt.preventDefault();
+            eEvt.stopPropagation();
+            setActiveMenuMsgId(m.id);
         },
         className: `group relative px-3 py-2 my-1 rounded-xl border transition-all duration-300 ease-in-out ${isFailed
             ? 'border-red-500/30 bg-red-500/5 hover:border-red-500/50'
@@ -201,7 +215,8 @@ export default function ChatMessageItem({
                     isOpen: showMenu,
                     onClose: () => setActiveMenuMsgId(null),
                     desktopPosition: 'bottom-full md:right-0 md:mb-1.5',
-                    widthClass: 'md:w-52'
+                    widthClass: 'md:w-52',
+                    quickActions: messageQuickActions
                 },
                     isPending
                         ? e('button', {

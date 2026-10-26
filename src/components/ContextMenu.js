@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'https://esm.sh/react@18';
+import React, { useState, useRef, useLayoutEffect, useEffect } from 'https://esm.sh/react@18';
 
 const e = React.createElement;
 
@@ -8,11 +8,28 @@ export default function ContextMenu({
     title = 'Options',
     desktopPosition = 'bottom-full md:right-0 md:mb-1.5',
     widthClass = 'md:w-52',
+    quickActions = [],
     children
 }) {
     const menuRef = useRef(null);
     const [isAbove, setIsAbove] = useState(true);
     const [maxHeight, setMaxHeight] = useState(null);
+
+    // Automatically close the menu when clicking outside of it on desktop
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen, onClose]);
 
     // Dynamically calculate position and maximum available height on open
     useLayoutEffect(() => {
@@ -48,6 +65,9 @@ export default function ContextMenu({
         ? 'bottom-full md:right-0 md:mb-1.5'
         : 'top-full md:right-0 md:mt-1.5';
 
+    // Limit quick actions to a maximum of 5
+    const displayedQuickActions = quickActions.slice(0, 5);
+
     return e(React.Fragment, null,
         // Mobile backdrop overlay
         e('div', {
@@ -71,6 +91,24 @@ export default function ContextMenu({
             title && e('div', {
                 className: 'hidden md:block px-3 py-1.5 text-[10px] font-light uppercase tracking-wider text-neutral-500 border-b border-white/10 mb-1 flex-shrink-0'
             }, title),
+
+            // Quick Actions bar at the top (if provided)
+            displayedQuickActions.length > 0 && e('div', {
+                className: 'flex items-center justify-between px-1 py-1.5 mb-1 border-b border-white/10 flex-shrink-0 gap-1'
+            },
+                displayedQuickActions.map((qa, idx) =>
+                    e('button', {
+                        key: idx,
+                        onClick: (eEvt) => {
+                            eEvt.stopPropagation();
+                            if (qa.onClick) qa.onClick();
+                            onClose();
+                        },
+                        title: qa.label,
+                        className: 'w-8 h-8 rounded-xl hover:bg-white/10 flex items-center justify-center text-base transition-colors cursor-pointer'
+                    }, qa.icon)
+                )
+            ),
 
             // Scrollable container for menu items if content exceeds available height
             e('div', {
