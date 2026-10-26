@@ -92,9 +92,9 @@ export default function ContextMenu({
                 className: 'hidden md:block px-3 py-1.5 text-[10px] font-light uppercase tracking-wider text-neutral-500 border-b border-white/10 mb-1 flex-shrink-0'
             }, title),
 
-            // Quick Actions bar at the top (if provided)
+            // Quick Actions bar at the top (styled like buttons matching the cancel style)
             displayedQuickActions.length > 0 && e('div', {
-                className: 'flex items-center justify-between px-1 py-1.5 mb-1 border-b border-white/10 flex-shrink-0 gap-1'
+                className: 'flex items-center justify-between px-0.5 py-1.5 mb-1 border-b border-white/10 flex-shrink-0 gap-1.5'
             },
                 displayedQuickActions.map((qa, idx) =>
                     e('button', {
@@ -105,7 +105,7 @@ export default function ContextMenu({
                             onClose();
                         },
                         title: qa.label,
-                        className: 'w-8 h-8 rounded-xl hover:bg-white/10 flex items-center justify-center text-base transition-colors cursor-pointer'
+                        className: 'flex-1 bg-white/10 hover:bg-white/20 text-white py-1.5 px-1 rounded-xl flex items-center justify-center text-base transition-all duration-200 cursor-pointer'
                     }, qa.icon)
                 )
             ),
