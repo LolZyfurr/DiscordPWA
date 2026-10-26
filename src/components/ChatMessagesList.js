@@ -79,26 +79,30 @@ export default function ChatMessagesList({
         const container = containerRef.current;
         if (!container) return;
 
-        if (isFetchingMoreRef.current) {
+        if (isAtBottomRef.current) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        } else if (isFetchingMoreRef.current) {
             const newScrollHeight = container.scrollHeight;
-            const addedHeight = newScrollHeight - prevScrollHeightRef.current;
+            const scrollHeightDiff = newScrollHeight - prevScrollHeightRef.current;
 
-            container.style.overflow = 'hidden';
-            container.scrollTop = prevScrollTopRef.current + addedHeight;
+            if (scrollHeightDiff > 0) {
+                const distanceFromBottom = prevScrollHeightRef.current - prevScrollTopRef.current;
+                container.style.overflow = 'hidden';
+                container.scrollTop = newScrollHeight - distanceFromBottom;
 
-            requestAnimationFrame(() => {
-                container.style.overflow = '';
-                isFetchingMoreRef.current = false;
-            });
-
-            if (currentMessages.length === prevMessagesLengthRef.current) {
-                hasMoreRef.current = false;
-            }
-        } else {
-            if (isAtBottomRef.current) {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                requestAnimationFrame(() => {
+                    container.style.overflow = '';
+                    isFetchingMoreRef.current = false;
+                });
             }
         }
+
+        if (currentMessages.length === prevMessagesLengthRef.current && isFetchingMoreRef.current) {
+            hasMoreRef.current = false;
+        }
+
+        prevScrollHeightRef.current = container.scrollHeight;
+        prevScrollTopRef.current = container.scrollTop;
         prevMessagesLengthRef.current = currentMessages.length;
     }, [currentMessages, messagesEndRef]);
 
@@ -110,6 +114,9 @@ export default function ChatMessagesList({
         const atBottom = distanceToBottom < 100;
         isAtBottomRef.current = atBottom;
         setShowScrollButton(!atBottom);
+
+        prevScrollTopRef.current = scrollTop;
+        prevScrollHeightRef.current = scrollHeight;
 
         if (scrollTop < 20 && !isFetchingMoreRef.current && hasMoreRef.current && handleLoadMore && currentMessages.length > 0) {
             isFetchingMoreRef.current = true;
